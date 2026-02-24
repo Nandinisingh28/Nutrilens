@@ -1,145 +1,126 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { History as HistoryIcon, ChevronRight, Search } from 'lucide-react';
+import { Clock, ChevronRight, Target, Zap, ArrowLeft } from 'lucide-react';
 import VerdictBadge from '../components/VerdictBadge';
-import { scansAPI } from '../api/client';
+import * as api from '../utils/api';
 
-function History() {
+const pageVariants = {
+    initial: { opacity: 0, y: 16 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -16 },
+};
+
+const History = () => {
     const navigate = useNavigate();
     const [scans, setScans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        const fetchHistory = async () => {
-            try {
-                const response = await scansAPI.getHistory();
-                setScans(response.data);
-            } catch (err) {
-                setError('Failed to load scan history');
-            }
-            setLoading(false);
-        };
-
-        fetchHistory();
+        api.getScanHistory()
+            .then(setScans)
+            .catch((err) => setError(err.message || 'Failed to load scan history.'))
+            .finally(() => setLoading(false));
     }, []);
 
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-IN', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+    const formatDate = (iso) => {
+        if (!iso) return '';
+        return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     };
-
-    const getCategoryLabel = (category) => {
-        const labels = {
-            PROTEIN_BAR: '🥜 Protein Bar',
-            BREAKFAST_CEREAL: '🥣 Cereal',
-            BISCUITS_COOKIES: '🍪 Biscuits',
-            SNACKS: '🍿 Snacks',
-            CHOCOLATES_CONFECTIONERY: '🍫 Chocolate',
-            BEVERAGES: '🥤 Beverages',
-            ENERGY_DRINKS: '⚡ Energy Drinks',
-            DAIRY_PRODUCTS: '🥛 Dairy',
-            INSTANT_NOODLES_RTE: '🍜 Noodles/RTE',
-            SAUCES_SPREADS: '🫙 Sauces',
-            HEALTH_SUPPLEMENTS: '💊 Supplements',
-            FROZEN_FOODS: '🧊 Frozen',
-        };
-        return labels[category] || category;
-    };
-
-    if (loading) {
-        return (
-            <div className="loading-overlay" style={{ position: 'static', minHeight: '400px' }}>
-                <div className="spinner spinner-lg"></div>
-                <p className="loading-text">Loading history...</p>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="alert alert-error">
-                {error}
-            </div>
-        );
-    }
 
     return (
-        <div className="animate-fadeIn">
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 'var(--spacing-8)'
-            }}>
-                <div>
-                    <h1 style={{ marginBottom: 'var(--spacing-2)' }}>Scan History</h1>
-                    <p style={{ color: 'var(--color-neutral-400)', marginBottom: 0 }}>
-                        {scans.length} scan{scans.length !== 1 ? 's' : ''} completed
-                    </p>
-                </div>
-                <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>
-                    New Scan
-                </button>
-            </div>
+        <motion.div
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.4 }}
+            className="min-h-screen py-10 px-6 relative overflow-hidden"
+        >
+            <div className="absolute top-20 right-1/4 w-[400px] h-[400px] bg-nutri-mint/6 rounded-full blur-[100px] pointer-events-none" />
 
-            {scans.length === 0 ? (
-                <div className="empty-state">
-                    <div className="empty-state-icon">
-                        <Search size={80} />
+            <div className="max-w-3xl mx-auto relative z-10">
+                {/* Header */}
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-nutri-mint/10 border border-nutri-mint/30 mb-4">
+                        <Clock className="w-3.5 h-3.5 text-nutri-mint" />
+                        <span className="text-xs font-semibold text-nutri-mint">Scan History</span>
                     </div>
-                    <h3 className="empty-state-title">No scans yet</h3>
-                    <p className="empty-state-text">
-                        You haven't analyzed any products yet. Start by scanning a food label!
-                    </p>
-                    <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>
-                        Start Your First Scan
-                    </button>
-                </div>
-            ) : (
-                <div className="history-list">
-                    {scans.map((scan) => (
-                        <div
-                            key={scan.scan_id}
-                            className="history-item"
-                            onClick={() => navigate(`/results/${scan.scan_id}`)}
-                        >
-                            <div className="history-item-main">
-                                <div className="history-item-claim">
-                                    "{scan.user_claim}"
-                                </div>
-                                <div className="history-item-meta">
-                                    <span>{getCategoryLabel(scan.category)}</span>
-                                    <span>•</span>
-                                    <span>{scan.scan_mode} Scan</span>
-                                    <span>•</span>
-                                    <span>{formatDate(scan.created_at)}</span>
-                                </div>
-                            </div>
+                    <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Past Scans</h1>
+                    <p className="text-gray-400">Review your previous ingredient analyses.</p>
+                </motion.div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-4)' }}>
-                                {scan.score !== null && (
-                                    <span className="history-item-score">
-                                        {Math.round(scan.score)}%
-                                    </span>
-                                )}
-                                {scan.final_verdict && (
-                                    <VerdictBadge verdict={scan.final_verdict} />
-                                )}
-                                <ChevronRight size={20} color="var(--color-neutral-500)" />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
+                {loading ? (
+                    <div className="flex items-center justify-center py-20">
+                        <span className="w-8 h-8 border-2 border-nutri-mint/40 border-t-nutri-mint rounded-full animate-spin" />
+                    </div>
+                ) : error ? (
+                    <div className="text-center py-16">
+                        <p className="text-nutri-red mb-4">{error}</p>
+                        <motion.button
+                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                            onClick={() => window.location.reload()}
+                            className="px-6 py-3 rounded-xl bg-white/10 text-white font-medium"
+                        >
+                            Retry
+                        </motion.button>
+                    </div>
+                ) : scans.length === 0 ? (
+                    <div className="text-center py-20">
+                        <Clock className="w-14 h-14 text-gray-700 mx-auto mb-4" />
+                        <p className="text-gray-500 text-lg">No scans yet.</p>
+                        <motion.button
+                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                            onClick={() => navigate('/dashboard')}
+                            className="mt-6 px-6 py-3 rounded-xl bg-nutri-mint text-black font-bold hover:bg-nutri-mint-light transition-colors"
+                        >
+                            Start Scanning
+                        </motion.button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {scans.map((scan, i) => (
+                            <motion.button
+                                key={scan.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.08 }}
+                                whileHover={{ y: -2, transition: { duration: 0.15 } }}
+                                whileTap={{ scale: 0.99 }}
+                                onClick={() => navigate(`/results/${scan.id}`)}
+                                className="w-full p-5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-white/20 hover:bg-white/[0.05] transition-all text-left group"
+                            >
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                                            <VerdictBadge verdict={scan.final_verdict} size="sm" />
+                                            <span className="flex items-center gap-1 text-xs text-gray-500 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                                                {scan.scan_mode === 'PRECISION' ? <Target className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
+                                                {scan.scan_mode === 'PRECISION' ? 'Precision' : 'Quick'}
+                                            </span>
+                                        </div>
+                                        <p className="text-white font-semibold text-sm mb-1 truncate">{scan.user_claim}</p>
+                                        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                                            <span className="bg-white/5 px-2 py-0.5 rounded-full">{scan.category}</span>
+                                            <span>{formatDate(scan.created_at)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 flex-shrink-0">
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-500">Score</p>
+                                            <p className="text-lg font-bold text-white">{scan.score != null ? `${scan.score}%` : '—'}</p>
+                                        </div>
+                                        <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-nutri-mint group-hover:translate-x-1 transition-all" />
+                                    </div>
+                                </div>
+                            </motion.button>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </motion.div>
     );
-}
+};
 
 export default History;

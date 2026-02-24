@@ -1,26 +1,32 @@
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import React from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
-function ProtectedRoute({ children }) {
+const ProtectedRoute = () => {
     const { isAuthenticated, loading } = useAuth();
     const location = useLocation();
 
-    // Show loading state while checking authentication
     if (loading) {
         return (
-            <div className="loading-overlay">
-                <div className="spinner spinner-lg"></div>
-                <p className="loading-text">Loading...</p>
+            <div className="min-h-screen bg-black flex items-center justify-center">
+                <div className="flex gap-2">
+                    {[0, 1, 2].map((i) => (
+                        <div
+                            key={i}
+                            className="w-3 h-3 rounded-full bg-nutri-mint/60 animate-bounce"
+                            style={{ animationDelay: `${i * 0.15}s` }}
+                        />
+                    ))}
+                </div>
             </div>
         );
     }
 
-    // Redirect to login if not authenticated
     if (!isAuthenticated) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    return children;
-}
+    return <Outlet />;
+};
 
 export default ProtectedRoute;

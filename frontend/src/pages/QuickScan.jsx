@@ -1,186 +1,172 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Zap, ArrowLeft } from 'lucide-react';
-import ImageUpload from '../components/ImageUpload';
-import { scansAPI } from '../api/client';
+import { ArrowLeft, Zap, Loader2, CheckCircle } from 'lucide-react';
+import ImageUploadZone from '../components/ImageUploadZone';
+import * as api from '../utils/api';
 
-function QuickScan() {
+const pageVariants = {
+    initial: { opacity: 0, y: 16 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -16 },
+};
+
+const CATEGORIES = [
+    { label: 'Protein Bar', value: 'PROTEIN_BAR' },
+    { label: 'Breakfast Cereal', value: 'BREAKFAST_CEREAL' },
+];
+
+const QuickScan = () => {
     const navigate = useNavigate();
     const [image, setImage] = useState(null);
-    const [claim, setClaim] = useState('');
+    const [preview, setPreview] = useState(null);
     const [category, setCategory] = useState('PROTEIN_BAR');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [claim, setClaim] = useState('');
+    const [errors, setErrors] = useState({});
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [serverError, setServerError] = useState('');
+
+    const readFile = (file) =>
+        new Promise((res) => {
+            const reader = new FileReader();
+            reader.onload = (e) => res(e.target.result);
+            reader.readAsDataURL(file);
+        });
+
+    const handleImageChange = async (file) => {
+        setImage(file);
+        setPreview(await readFile(file));
+        setErrors((p) => ({ ...p, image: '' }));
+    };
+
+    const validate = () => {
+        const errs = {};
+        if (!image) errs.image = 'Please upload a product label image';
+        if (!claim.trim()) errs.claim = 'Please enter at least one claim to verify';
+        return errs;
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
+        const errs = validate();
+        if (Object.keys(errs).length) { setErrors(errs); return; }
 
-        // Validate inputs
-        if (!image) {
-            setError('Please upload an image');
-            return;
-        }
-        if (!claim.trim()) {
-            setError('Please enter a claim to verify');
-            return;
-        }
-
-        setLoading(true);
-
+        setIsAnalyzing(true);
+        setServerError('');
         try {
-            // Create form data
-            const formData = new FormData();
-            formData.append('image', image);
-            formData.append('claim', claim);
-            formData.append('category', category);
-
-            // Submit scan
-            const response = await scansAPI.quickScan(formData);
-
-            // Navigate to results
-            navigate(`/results/${response.data.scan_id}`);
+            const result = await api.quickScan({ image, claim, category });
+            navigate(`/results/${result.id}`, { state: { result } });
         } catch (err) {
-            const message = err.response?.data?.detail || 'Failed to process scan. Please try again.';
-            setError(message);
+            setServerError(err.message || 'Analysis failed. Please try again.');
+        } finally {
+            setIsAnalyzing(false);
         }
-
-        setLoading(false);
     };
 
     return (
-        <div className="animate-fadeIn">
-            <button
-                className="btn btn-ghost"
-                onClick={() => navigate('/dashboard')}
-                style={{ marginBottom: 'var(--spacing-6)' }}
-            >
-                <ArrowLeft size={18} />
-                Back to Dashboard
-            </button>
+        <motion.div
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.4 }}
+            className="min-h-screen py-10 px-6 relative overflow-hidden"
+        >
+            <div className="absolute top-40 right-1/4 w-[400px] h-[400px] bg-amber-500/8 rounded-full blur-[100px] pointer-events-none" />
 
-            <div className="card">
-                <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-8)' }}>
-                    <div style={{
-                        width: '64px',
-                        height: '64px',
-                        background: 'var(--gradient-secondary)',
-                        borderRadius: 'var(--radius-xl)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto var(--spacing-4)'
-                    }}>
-                        <Zap size={32} color="white" />
-                    </div>
-                    <h1 style={{ marginBottom: 'var(--spacing-2)' }}>Quick Scan</h1>
-                    <p style={{ color: 'var(--color-neutral-400)' }}>
-                        Upload a single image containing both nutrition and ingredients
-                    </p>
-                </div>
+            <div className="max-w-2xl mx-auto relative z-10">
+                {/* Back */}
+                <motion.button
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    onClick={() => navigate('/dashboard')}
+                    className="flex items-center gap-2 text-gray-400 hover:text-white mb-7 transition-colors"
+                >
+                    <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+                </motion.button>
 
-                {error && (
-                    <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-6)' }}>
-                        {error}
+                {/* Header */}
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 mb-4">
+                        <Zap className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-xs font-semibold text-amber-400">Quick Scan</span>
                     </div>
+                    <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Upload Label Image</h1>
+                    <p className="text-gray-400">One combined label image is all you need for a fast claim check.</p>
+                </motion.div>
+
+                {serverError && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-6 px-4 py-3 rounded-xl bg-nutri-red/10 border border-nutri-red/30 text-nutri-red text-sm text-center"
+                    >
+                        {serverError}
+                    </motion.div>
                 )}
 
-                <form onSubmit={handleSubmit}>
-                    {/* Category Selection */}
-                    <div className="form-group">
-                        <label className="form-label">Product Category</label>
-                        <div className="category-select" style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(3, 1fr)',
-                            gap: 'var(--spacing-2)',
-                            maxHeight: '240px',
-                            overflowY: 'auto',
-                        }}>
-                            {[
-                                { key: 'PROTEIN_BAR', emoji: '🥜', label: 'Protein Bar' },
-                                { key: 'BREAKFAST_CEREAL', emoji: '🥣', label: 'Cereal' },
-                                { key: 'BISCUITS_COOKIES', emoji: '🍪', label: 'Biscuits' },
-                                { key: 'SNACKS', emoji: '🍿', label: 'Snacks' },
-                                { key: 'CHOCOLATES_CONFECTIONERY', emoji: '🍫', label: 'Chocolate' },
-                                { key: 'BEVERAGES', emoji: '🥤', label: 'Beverages' },
-                                { key: 'ENERGY_DRINKS', emoji: '⚡', label: 'Energy Drinks' },
-                                { key: 'DAIRY_PRODUCTS', emoji: '🥛', label: 'Dairy' },
-                                { key: 'INSTANT_NOODLES_RTE', emoji: '🍜', label: 'Noodles/RTE' },
-                                { key: 'SAUCES_SPREADS', emoji: '🫙', label: 'Sauces' },
-                                { key: 'HEALTH_SUPPLEMENTS', emoji: '💊', label: 'Supplements' },
-                                { key: 'FROZEN_FOODS', emoji: '🧊', label: 'Frozen' },
-                            ].map(({ key, emoji, label }) => (
-                                <div
-                                    key={key}
-                                    className={`category-option ${category === key ? 'active' : ''}`}
-                                    onClick={() => setCategory(key)}
-                                >
-                                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '4px' }}>{emoji}</span>
-                                    <span className="category-option-label">{label}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                <form onSubmit={handleSubmit} className="space-y-7">
+                    {/* Category */}
+                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Product Category</label>
+                        <select
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            className="w-full bg-black/30 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-amber-400/50 focus:ring-1 focus:ring-amber-400/30 transition-all appearance-none cursor-pointer"
+                        >
+                            {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                    </motion.div>
 
-                    {/* Claim Input */}
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="claim">Claim to Verify</label>
-                        <input
-                            id="claim"
-                            type="text"
-                            className="form-input"
-                            placeholder="e.g., High Protein and Low Sugar"
+                    {/* Image upload */}
+                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                        <ImageUploadZone
+                            label="Combined Product Label"
+                            preview={preview}
+                            onChange={handleImageChange}
+                            onRemove={() => { setImage(null); setPreview(null); }}
+                            error={errors.image}
+                        />
+                    </motion.div>
+
+                    {/* Claim */}
+                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Health Claims to Verify</label>
+                        <textarea
                             value={claim}
-                            onChange={(e) => setClaim(e.target.value)}
-                            required
+                            onChange={(e) => { setClaim(e.target.value); setErrors((p) => ({ ...p, claim: '' })); }}
+                            placeholder="e.g. Zero Sugar, Natural Energy, High Fiber"
+                            rows={3}
+                            className={`w-full bg-white/[0.03] border rounded-2xl p-4 text-white placeholder-gray-500 focus:outline-none focus:ring-1 transition-all resize-none ${errors.claim ? 'border-nutri-red/60 focus:border-nutri-red focus:ring-nutri-red/30' : 'border-white/10 focus:border-amber-400/50 focus:ring-amber-400/30'}`}
                         />
-                        <p style={{
-                            fontSize: 'var(--font-size-xs)',
-                            color: 'var(--color-neutral-500)',
-                            marginTop: 'var(--spacing-2)'
-                        }}>
-                            Enter the marketing claim from the package you want to verify
-                        </p>
-                    </div>
+                        {errors.claim && <p className="mt-1.5 text-xs text-nutri-red">{errors.claim}</p>}
+                        <p className="text-gray-500 text-xs mt-2">Separate multiple claims with commas.</p>
+                    </motion.div>
 
-                    {/* Image Upload */}
-                    <div className="form-group">
-                        <label className="form-label">Product Label Image</label>
-                        <ImageUpload
-                            label="Upload Product Label"
-                            hint="Photo showing both nutrition facts and ingredients"
-                            onFileSelect={setImage}
-                        />
-                    </div>
-
-                    {/* Submit Button */}
-                    <button
+                    {/* Submit */}
+                    <motion.button
                         type="submit"
-                        className="btn btn-primary btn-lg w-full"
-                        disabled={loading}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        disabled={isAnalyzing}
+                        className="w-full py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 bg-gradient-to-r from-amber-400 to-orange-500 text-black shadow-lg shadow-amber-500/20 hover:shadow-amber-500/35 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                        {loading ? (
-                            <>
-                                <div className="spinner"></div>
-                                Analyzing...
-                            </>
+                        {isAnalyzing ? (
+                            <><Loader2 className="w-6 h-6 animate-spin" /> Analyzing...</>
                         ) : (
-                            <>
-                                <Zap size={20} />
-                                Quick Analyze
-                            </>
+                            <><CheckCircle className="w-6 h-6" /> Quick Check</>
                         )}
-                    </button>
+                    </motion.button>
                 </form>
 
-                <div className="alert alert-info" style={{ marginTop: 'var(--spacing-6)' }}>
-                    <p style={{ margin: 0, fontSize: 'var(--font-size-sm)' }}>
-                        💡 <strong>Tip:</strong> For best results, make sure both the nutrition table and ingredients list are visible and in focus. Consider using Precision Scan for more accurate results.
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mt-6 p-4 rounded-xl bg-white/[0.02] border border-white/10">
+                    <p className="text-sm text-gray-400">
+                        <span className="text-amber-400 font-medium">Tip:</span> For a more thorough analysis with separate nutrition + ingredients images, try <button onClick={() => navigate('/scan/precision')} className="text-nutri-mint underline hover:no-underline">Precision Scan</button>.
                     </p>
-                </div>
+                </motion.div>
             </div>
-        </div >
+        </motion.div>
     );
-}
+};
 
 export default QuickScan;
