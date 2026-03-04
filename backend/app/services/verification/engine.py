@@ -77,7 +77,7 @@ class ClaimVerificationEngine:
         
         Args:
             claim: User's claim to verify
-            category: Product category (PROTEIN_BAR or BREAKFAST_CEREAL)
+            category: Product category (see ProductCategory enum for all valid values)
             nutrition: Extracted nutrition info
             ingredients: Extracted ingredients info
             
@@ -361,7 +361,10 @@ class ClaimVerificationEngine:
         actual_str = None
         threshold_str = None
         if conditions and nutrition.get(conditions[0]['nutrient']) is not None:
-            actual_str = f"{nutrition.get(conditions[0]['nutrient'])}g per 100g"
+            nutrient_name = conditions[0]['nutrient']
+            unit = '%' if 'percent' in nutrient_name else 'g'
+            actual_val = nutrition.get(nutrient_name)
+            actual_str = f"{actual_val}{unit} per 100g" if unit == 'g' else f"{actual_val}{unit} of energy"
             threshold_str = threshold_def.get('description', '')
         
         return SubClaimResult(
@@ -462,6 +465,165 @@ class ClaimVerificationEngine:
             if found:
                 return True, f"Whole grain ingredients found: {', '.join(found)}"
             return False, "No whole grain ingredients detected"
+        
+        elif check_type == 'gluten_free':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            gluten_keywords = [
+                'wheat', 'barley', 'rye', 'spelt', 'kamut', 'triticale',
+                'semolina', 'durum', 'farina', 'bulgur', 'couscous',
+                'wheat flour', 'maida', 'all purpose flour', 'refined flour',
+                'wheat gluten', 'vital wheat gluten', 'seitan',
+                'malt', 'malt extract', 'malt syrup', 'malt vinegar',
+                'brewer\'s yeast',
+            ]
+            found = [kw for kw in gluten_keywords if kw in raw]
+            if found:
+                return False, f"Gluten-containing ingredients found: {', '.join(found)}"
+            return True, "No gluten-containing ingredients detected"
+        
+        elif check_type == 'vegan':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            animal_keywords = [
+                # Dairy
+                'milk', 'milk solids', 'milk powder', 'skim milk', 'whole milk',
+                'cream', 'butter', 'ghee', 'cheese', 'paneer', 'curd', 'yogurt',
+                'whey', 'whey protein', 'casein', 'caseinate', 'lactose',
+                'milk fat', 'buttermilk', 'condensed milk',
+                # Eggs
+                'egg', 'eggs', 'egg white', 'egg yolk', 'albumin', 'lysozyme',
+                # Honey
+                'honey',
+                # Gelatin & animal fats
+                'gelatin', 'gelatine', 'lard', 'tallow', 'shellac',
+                'carmine', 'cochineal', 'isinglass',
+                # Other
+                'collagen', 'keratin', 'lanolin', 'beeswax',
+                'fish oil', 'cod liver oil', 'anchovy', 'anchovies',
+            ]
+            found = [kw for kw in animal_keywords if kw in raw]
+            if found:
+                return False, f"Animal-derived ingredients found: {', '.join(found)}"
+            return True, "No animal-derived ingredients detected"
+        
+        elif check_type == 'eggless':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            egg_keywords = [
+                'egg', 'eggs', 'egg white', 'egg yolk', 'whole egg',
+                'egg powder', 'dried egg', 'albumin', 'lysozyme',
+                'egg lecithin', 'egg solids',
+            ]
+            found = [kw for kw in egg_keywords if kw in raw]
+            if found:
+                return False, f"Egg-derived ingredients found: {', '.join(found)}"
+            return True, "No egg ingredients detected"
+        
+        elif check_type == 'no_palm_oil':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            palm_keywords = [
+                'palm oil', 'palm fat', 'palm kernel oil', 'palm kernel fat',
+                'palm olein', 'palm stearin', 'palmitate',
+                'hydrogenated palm', 'refined palm',
+            ]
+            found = [kw for kw in palm_keywords if kw in raw]
+            if found:
+                return False, f"Palm oil ingredients found: {', '.join(found)}"
+            return True, "No palm oil detected in ingredients"
+        
+        elif check_type == 'no_added_msg':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            msg_keywords = [
+                'monosodium glutamate', 'msg', 'ajinomoto',
+                'e621', 'sodium glutamate', 'glutamic acid',
+                'hydrolyzed vegetable protein', 'hydrolysed vegetable protein',
+            ]
+            found = [kw for kw in msg_keywords if kw in raw]
+            if found:
+                return False, f"MSG or glutamate ingredients found: {', '.join(found)}"
+            return True, "No added MSG detected in ingredients"
+        
+        elif check_type == 'lactose_free':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            lactose_keywords = [
+                'lactose', 'milk sugar', 'whey', 'whey powder',
+                'milk solids', 'milk powder', 'skim milk powder',
+                'casein', 'caseinate', 'buttermilk powder',
+            ]
+            found = [kw for kw in lactose_keywords if kw in raw]
+            if found:
+                return False, f"Lactose-containing ingredients found: {', '.join(found)}"
+            return True, "No lactose-containing ingredients detected"
+        
+        elif check_type == 'cholesterol_free':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            cholesterol_keywords = [
+                'lard', 'tallow', 'butter', 'ghee', 'egg yolk',
+                'organ meat', 'liver', 'shellfish',
+                'full cream milk', 'whole cream',
+            ]
+            found = [kw for kw in cholesterol_keywords if kw in raw]
+            if found:
+                return False, f"High-cholesterol ingredients found: {', '.join(found)}"
+            return True, "No high-cholesterol ingredients detected"
+        
+        elif check_type == 'whey_protein':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            whey_keywords = [
+                'whey protein', 'whey protein isolate', 'whey protein concentrate',
+                'whey protein hydrolysate', 'whey powder', 'whey',
+            ]
+            found = [kw for kw in whey_keywords if kw in raw]
+            if found:
+                return True, f"Whey protein found: {', '.join(found)}"
+            return False, "No whey protein detected in ingredients"
+        
+        elif check_type == 'plant_protein':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            plant_keywords = [
+                'pea protein', 'soy protein', 'soya protein', 'rice protein',
+                'hemp protein', 'brown rice protein', 'wheat protein',
+                'lentil protein', 'chickpea protein', 'plant protein',
+                'peanut protein', 'almond protein',
+            ]
+            found = [kw for kw in plant_keywords if kw in raw]
+            if found:
+                return True, f"Plant protein found: {', '.join(found)}"
+            return False, "No plant protein sources detected in ingredients"
+        
+        elif check_type == 'fruit_100_percent':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            additive_keywords = [
+                'added sugar', 'sugar', 'glucose', 'fructose syrup',
+                'high fructose', 'corn syrup', 'artificial flavor',
+                'artificial colour', 'artificial color', 'preservative',
+                'concentrate', 'from concentrate',
+            ]
+            found = [kw for kw in additive_keywords if kw in raw]
+            if found:
+                return False, f"Non-fruit additives found: {', '.join(found)}"
+            return True, "No artificial additives detected — appears to be 100% fruit"
+        
+        elif check_type == 'multigrain':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            grain_keywords = [
+                'wheat', 'rice', 'oats', 'barley', 'corn', 'maize',
+                'ragi', 'bajra', 'jowar', 'millet', 'quinoa', 'buckwheat',
+                'sorghum', 'amaranth', 'rye', 'spelt',
+            ]
+            found = [kw for kw in grain_keywords if kw in raw]
+            if len(found) >= 2:
+                return True, f"Multiple grains found: {', '.join(found)}"
+            return False, f"Only {len(found)} grain type(s) detected — need at least 2 for multigrain"
+        
+        elif check_type == 'whole_wheat':
+            raw = ingredients.raw_text.lower() if ingredients.raw_text else ""
+            ww_keywords = [
+                'whole wheat', 'whole wheat flour', 'atta', 'gehun atta',
+                'whole wheat atta', '100% whole wheat',
+            ]
+            found = [kw for kw in ww_keywords if kw in raw]
+            if found:
+                return True, f"Whole wheat ingredients found: {', '.join(found)}"
+            return False, "No whole wheat ingredients detected"
         
         return True, ""
     
@@ -582,7 +744,8 @@ class ClaimVerificationEngine:
         if conditions:
             cond = conditions[0]
             actual = nutrition.get(cond['nutrient'])
-            return f"Product meets requirement: {actual}g per 100g (threshold: {threshold_def.get('description', '')})"
+            unit = '%' if 'percent' in cond['nutrient'] else 'g per 100g'
+            return f"Product meets requirement: {actual}{unit} (threshold: {threshold_def.get('description', '')})"
         return f"Product meets the {get_claim_description(claim_type)} requirements"
     
     def _format_failure_reason(self, claim_type: str, failed: List[Dict], threshold_def: Dict) -> str:
@@ -590,7 +753,8 @@ class ClaimVerificationEngine:
         if failed:
             f = failed[0]
             nutrient_name = f['nutrient'].replace('_per_100g', '').replace('_', ' ').title()
-            return f"{nutrient_name} is {f['actual']}g per 100g, but requirement is {threshold_def.get('description', '')}"
+            unit = '%' if 'percent' in f['nutrient'] else 'g per 100g'
+            return f"{nutrient_name} is {f['actual']}{unit}, but requirement is {threshold_def.get('description', '')}"
         return f"Product does not meet {get_claim_description(claim_type)} requirements"
     
     def _format_partial_reason(
@@ -617,14 +781,25 @@ class ClaimVerificationEngine:
     
     def _nutrition_to_dict(self, nutrition: NutritionInfo) -> Dict:
         """Convert NutritionInfo to dictionary"""
-        return {
+        d = {
             'protein_per_100g': nutrition.protein_per_100g,
             'sugar_per_100g': nutrition.sugar_per_100g,
             'fat_per_100g': nutrition.fat_per_100g,
+            'saturated_fat_per_100g': getattr(nutrition, 'saturated_fat_per_100g', None),
+            'trans_fat_per_100g': getattr(nutrition, 'trans_fat_per_100g', None),
+            'cholesterol_per_100g': getattr(nutrition, 'cholesterol_per_100g', None),
             'fiber_per_100g': nutrition.fiber_per_100g,
             'calories_per_100g': nutrition.calories_per_100g,
             'sodium_per_100g': nutrition.sodium_per_100g,
         }
+        
+        # Calculate derived FSSAI metrics
+        if d['protein_per_100g'] is not None and d.get('calories_per_100g'):
+            protein_energy = d['protein_per_100g'] * 4
+            if d['calories_per_100g'] > 0:
+                d['protein_energy_percent'] = round((protein_energy / d['calories_per_100g']) * 100, 1)
+        
+        return d
     
     def _create_ingredient_flags(self, ingredients: IngredientsInfo) -> Dict:
         """Create ingredient flags dictionary"""

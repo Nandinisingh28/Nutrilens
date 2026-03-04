@@ -1,6 +1,7 @@
 """
 Authentication Service
 """
+from datetime import datetime, timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
@@ -136,6 +137,95 @@ class AuthService:
         self.db.refresh(user)
         
         return user
+
+    def create_reset_token(self, email: str) -> Optional[str]:
+        """
+        Create a password reset token for the given email.
+        
+        Args:
+            email: User's email address
+            
+        Returns:
+            Reset token string if user exists, None otherwise
+        """
+        import secrets
+        from datetime import timedelta
+        from app.models.password_reset import PasswordResetToken
+        
+        user = self.get_user_by_email(email)
+        if not user:
+            return None
+        
+        # Generate secure token
+        token = secrets.token_urlsafe(32)
+        
+        # Store token with 30-minute expiry
+        reset_token = PasswordResetToken(
+            user_id=user.id,
+            token=token,
+            expires_at=datetime.utcnow() + timedelta(minutes=30),
+            used=False
+        )
+        
+        self.db.add(reset_token)
+        self.db.commit()
+        
+        return token
+
+    def reset_password(self, token: str, new_password: str) -> bool:
+        """
+        Reset a user's password using a valid reset token.
+        
+        Args:
+            token: Reset token string
+            new_password: New plain-text password
+            
+        Returns:
+            True if password was reset successfully
+            
+        Raises:
+            HTTPException: If token is invalid, expired, or already used
+        """
+        from app.models.password_reset import PasswordResetToken
+        
+        reset_token = self.db.query(PasswordResetToken).filter(
+            PasswordResetToken.token == token
+        ).first()
+        
+        if not reset_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid reset token"
+            )
+        
+        if reset_token.used:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This reset link has already been used"
+            )
+        
+        if reset_token.is_expired:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This reset link has expired"
+            )
+        
+        # Update user's password
+        user = self.get_user_by_id(reset_token.user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User not found"
+            )
+        
+        user.hashed_password = hash_password(new_password)
+        
+        # Mark token as used
+        reset_token.used = True
+        
+        self.db.commit()
+        
+        return True
 
 
 async def get_current_user(

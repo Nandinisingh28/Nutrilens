@@ -1,24 +1,49 @@
 """
 OCR Text Extraction with Enhanced Sensitivity and Debug Logging
+
+Enhanced with image quality checking, confidence-based result selection,
+and additional preprocessing modes (denoised, sharpened).
 """
 import pytesseract
 import cv2
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 import re
+import os
+import shutil
 import logging
 
 from app.services.ocr.preprocessor import ImagePreprocessor
+from app.services.ocr.ocr_space_service import OCRSpaceOCR
+from app.config import get_settings
 
 # Configure debug logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# ── Windows Tesseract Auto-Detection ──────────────────────────────────
+if os.name == 'nt':
+    tesseract_cmd = shutil.which("tesseract")
+    if tesseract_cmd:
+        pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+    else:
+        _common_paths = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+            os.path.expanduser(r"~\AppData\Local\Programs\Tesseract-OCR\tesseract.exe")
+        ]
+        for _path in _common_paths:
+            if os.path.exists(_path):
+                pytesseract.pytesseract.tesseract_cmd = _path
+                logger.info(f"Tesseract found at: {_path}")
+                break
+
 
 class OCRExtractor:
     """
     Extracts text from food label images using keyword-anchored regions.
-    Enhanced with multiple preprocessing modes and debug output.
+    Enhanced with multiple preprocessing modes, confidence-based selection,
+    and image quality checking.
     """
     
     # Anchor keywords for different sections (expanded list)
@@ -39,7 +64,6 @@ class OCRExtractor:
     ]
     
     # Tesseract configs to try (from most to least strict)
-    # Added character whitelist for ingredients to reduce noise
     _WHITELIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:;()[]{}%-/ "
     
     TESSERACT_CONFIGS = [
@@ -62,60 +86,139 @@ class OCRExtractor:
     def __init__(self):
         self.preprocessor = ImagePreprocessor()
         self.debug_info = {}
+        
+        # OCR.space (free cloud OCR — 500 req/day)
+        _settings = get_settings()
+        self._ocr_space = OCRSpaceOCR(
+            api_key=_settings.ocr_space_api_key
+        )
+        self._ocr_provider = _settings.ocr_provider
     
     def extract_from_image(self, image_data: bytes) -> Dict[str, str]:
         """
-        Extract both nutrition and ingredients text from an image
-        Uses multiple preprocessing strategies for best results.
+        Extract both nutrition and ingredients text from an image.
+        
+        Strategy:
+        1. Try Google Vision API (if configured and available)
+        2. Fall back to Tesseract multi-strategy pipeline
         """
         self.debug_info = {
             'preprocessing_modes': [],
             'texts_extracted': [],
             'anchors_found': [],
             'best_mode': None,
-            'raw_texts': []
+            'raw_texts': [],
+            'image_quality': None,
+            'ocr_source': None,
         }
+        
+        # ── Image quality check ───────────────────────────────────────
+        quality = self.preprocessor.check_quality(image_data)
+        self.debug_info['image_quality'] = quality
+        
+        if not quality.get('is_valid'):
+            logger.warning(f"Image quality issues detected: {quality.get('issues', [])}")
+        
+        # ── Try OCR.space first ──────────────────────────────────────
+        if self._ocr_provider == "ocr_space" and self._ocr_space.is_available:
+            ocr_text = self._ocr_space.detect_text(image_data)
+            
+            if ocr_text and len(ocr_text) >= 20:
+                cleaned_text = self._clean_text(ocr_text)
+                
+                self.debug_info['best_mode'] = "ocr_space"
+                self.debug_info['ocr_source'] = "ocr_space"
+                
+                # Log anchors found
+                text_upper = cleaned_text.upper()
+                found_anchors = [a for a in self.NUTRITION_ANCHORS + self.INGREDIENTS_ANCHORS 
+                               if a.upper() in text_upper]
+                self.debug_info['anchors_found'] = found_anchors
+                
+                logger.info(
+                    f"Using OCR.space: {len(cleaned_text)} chars, "
+                    f"anchors={found_anchors}"
+                )
+                
+                # Extract sections
+                nutrition_text = self._extract_section(
+                    cleaned_text, self.NUTRITION_ANCHORS, "nutrition"
+                )
+                ingredients_text = self._extract_section(
+                    cleaned_text, self.INGREDIENTS_ANCHORS, "ingredients"
+                )
+                
+                return {
+                    "nutrition_text": nutrition_text or cleaned_text,
+                    "ingredients_text": ingredients_text or cleaned_text,
+                    "full_text": cleaned_text,
+                    "debug_info": self.debug_info,
+                    "ocr_source": "ocr_space",
+                }
+            else:
+                logger.info("OCR.space returned insufficient text, falling back to Tesseract")
+        
+        # ── Tesseract multi-strategy fallback ─────────────────────────
+        self.debug_info['ocr_source'] = "tesseract"
         
         best_nutrition = ""
         best_ingredients = ""
         best_full_text = ""
-        best_word_count = 0
+        best_score = -1
         
-        # Try multiple preprocessing approaches
+        # Limit to the most effective preprocessing approaches to save time
         preprocessing_modes = [
-            ('enhanced', self._preprocess_enhanced),
             ('standard', self._preprocess_standard),
-            ('high_contrast', self._preprocess_high_contrast),
+            ('enhanced', self._preprocess_enhanced),
             ('inverted', self._preprocess_inverted),
-            ('color_isolated', self._preprocess_color_isolated),
-            ('morphological', self._preprocess_morphological),
         ]
+        
+        all_attempts = []
         
         for mode_name, preprocess_func in preprocessing_modes:
             try:
                 processed = preprocess_func(image_data)
                 
-                # Try multiple Tesseract configs
-                for config in self.TESSERACT_CONFIGS[:3]:  # Limit to top 3
+                # Try only the best 2 Tesseract configs
+                for config in self.TESSERACT_CONFIGS[:2]:
                     try:
-                        full_text = pytesseract.image_to_string(processed, config=config)
+                        # Use image_to_data for confidence scores
+                        ocr_data = pytesseract.image_to_data(
+                            processed, config=config,
+                            output_type=pytesseract.Output.DICT
+                        )
+                        full_text = " ".join([x for x in ocr_data['text'] if x.strip()])
                         word_count = len(full_text.split())
                         
-                        self.debug_info['raw_texts'].append({
+                        # Calculate average confidence
+                        conf_values = [int(c) for c in ocr_data['conf'] if c != '-1' and int(c) > 0]
+                        avg_conf = sum(conf_values) / len(conf_values) if conf_values else 0
+                        
+                        # Also get the full string output for section extraction
+                        full_string = pytesseract.image_to_string(processed, config=config)
+                        
+                        attempt = {
                             'mode': mode_name,
                             'config': config,
                             'word_count': word_count,
-                            'preview': full_text[:500] if full_text else ""
-                        })
+                            'confidence': avg_conf,
+                            'text_len': len(full_string),
+                            'preview': full_string[:500] if full_string else ""
+                        }
+                        all_attempts.append(attempt)
+                        self.debug_info['raw_texts'].append(attempt)
                         
-                        # Keep the best result (most words extracted)
-                        if word_count > best_word_count:
-                            best_word_count = word_count
-                            best_full_text = full_text
+                        # ── Confidence-based selection ────────────────
+                        # Prefer results with meaningful text AND high confidence
+                        score = self._score_attempt(full_string, avg_conf, word_count)
+                        
+                        if score > best_score:
+                            best_score = score
+                            best_full_text = full_string
                             self.debug_info['best_mode'] = f"{mode_name} + {config}"
                             
                             # Log anchors found
-                            text_upper = full_text.upper()
+                            text_upper = full_string.upper()
                             found_anchors = [a for a in self.NUTRITION_ANCHORS + self.INGREDIENTS_ANCHORS 
                                            if a.upper() in text_upper]
                             self.debug_info['anchors_found'] = found_anchors
@@ -125,6 +228,10 @@ class OCRExtractor:
                         
             except Exception as e:
                 logger.debug(f"Preprocessing mode {mode_name} failed: {e}")
+        
+        # ── Clean the best text ───────────────────────────────────────
+        if best_full_text:
+            best_full_text = self._clean_text(best_full_text)
         
         # Extract sections from best text
         if best_full_text:
@@ -141,15 +248,123 @@ class OCRExtractor:
             )
         
         logger.info(f"OCR Debug: Best mode={self.debug_info['best_mode']}, "
-                   f"Words={best_word_count}, Anchors={self.debug_info['anchors_found']}")
+                   f"Score={best_score:.1f}, Anchors={self.debug_info['anchors_found']}")
         logger.debug(f"OCR Full Text Preview: {best_full_text[:1000]}")
         
         return {
             "nutrition_text": best_nutrition or best_full_text,
             "ingredients_text": best_ingredients or best_full_text,
             "full_text": best_full_text,
-            "debug_info": self.debug_info
+            "debug_info": self.debug_info,
+            "ocr_source": "tesseract",
         }
+    
+    def _score_attempt(self, text: str, confidence: float, word_count: int) -> float:
+        """
+        Score an OCR attempt based on confidence, text length, and anchor words.
+        """
+        text_len = len(text)
+        score = confidence * 0.4
+        score += min(word_count, 50) * 0.5
+        
+        text_upper = text.upper()
+        anchors_found = sum(1 for a in self.NUTRITION_ANCHORS + self.INGREDIENTS_ANCHORS 
+                          if a.upper() in text_upper)
+        score += anchors_found * 5
+        
+        if text_len <= 20 or confidence <= 40:
+            score *= 0.5
+        
+        return score
+    
+    # ── OCR Text Cleaning ─────────────────────────────────────────────
+    
+    def _clean_text(self, text: str) -> str:
+        """
+        Clean and normalize OCR text with comprehensive error correction.
+        Fixes common OCR misreadings of nutrition label text.
+        """
+        if not text:
+            return ""
+        
+        # ── Character-level fixes ─────────────────────────────────────
+        char_fixes = {
+            '|': 'l',
+            '¢': 'c',
+        }
+        for old, new in char_fixes.items():
+            text = text.replace(old, new)
+        
+        # ── Unit confusion fixes ──────────────────────────────────────
+        # OCR often reads (g) as (9), (G), (o), (0), etc.
+        text = re.sub(r'\(9\)', '(g)', text)
+        text = re.sub(r'\(G\)', '(g)', text)
+        text = re.sub(r'\(o\)', '(g)', text)
+        text = re.sub(r'\(0\)', '(g)', text)
+        
+        # ── Number / 100g fixes ───────────────────────────────────────
+        text = text.replace('lOO', '100')
+        text = text.replace('l00', '100')
+        text = text.replace('1OO', '100')
+        text = text.replace('Og', '0g')
+        
+        # ── kcal fixes ────────────────────────────────────────────────
+        text = text.replace('kcaI', 'kcal')
+        text = text.replace('KcaI', 'Kcal')
+        text = text.replace('kcai', 'kcal')
+        
+        # ── Nutrient name corrections ─────────────────────────────────
+        nutrient_fixes = {
+            # Protein
+            'Proteln': 'Protein',
+            'Protien': 'Protein',
+            'Prctein': 'Protein',
+            'Protain': 'Protein',
+            # Carbohydrate
+            'Carbohyd rate': 'Carbohydrate',
+            'Carbohydrato': 'Carbohydrate',
+            'Carboryoraio': 'Carbohydrate',
+            'Carbchydrate': 'Carbohydrate',
+            'Carbohydrare': 'Carbohydrate',
+            # Sugar
+            'Sugers': 'Sugars',
+            'Sugare': 'Sugars',
+            'Sugats': 'Sugars',
+            # Fat
+            'Saturatod': 'Saturated',
+            'Saturatcd': 'Saturated',
+            'a rated': 'Saturated',
+            'Saluraled': 'Saturated',
+            # Sodium
+            'Sodlum': 'Sodium',
+            'Scdium': 'Sodium',
+            'Sod1um': 'Sodium',
+            # Energy
+            'Enerqy': 'Energy',
+            'Eneryg': 'Energy',
+            # Fiber
+            'Diotary': 'Dietary',
+        }
+        
+        for old, new in nutrient_fixes.items():
+            text = re.sub(re.escape(old), new, text, flags=re.IGNORECASE)
+        
+        # ── Bracket/symbol confusion in numeric contexts ──────────────
+        text = re.sub(r'(\d)\s*\}', r'\1)', text)
+        text = re.sub(r'\{\s*(\d)', r'(\1', text)
+        text = re.sub(r'\[\s*-', '<', text)
+        
+        # ── "Less than" / "Not more than" normalization ───────────────
+        text = re.sub(r'/\s*(\d)', r'< \1', text)
+        text = re.sub(r'[<]\s*0(\d)', r'< 0.\1', text)
+        
+        # ── Whitespace cleanup ────────────────────────────────────────
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        return text.strip()
+    
+    # ── Preprocessing Modes ───────────────────────────────────────────
     
     def _preprocess_standard(self, image_data: bytes) -> np.ndarray:
         """Standard preprocessing"""
@@ -224,7 +439,6 @@ class OCRExtractor:
         """
         Preprocessing for WHITE TEXT on COLORED backgrounds (red, blue, etc.)
         Uses LAB color space to isolate light text from dark/colored backgrounds.
-        Improved with adaptive thresholding for uneven lighting.
         """
         img = self.preprocessor._load_image(image_data)
         
@@ -240,8 +454,7 @@ class OCRExtractor:
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(l_channel)
         
-        # Invert -> Adaptive Threshold -> Invert back
-        # This is more robust than fixed threshold
+        # Adaptive Threshold
         binary = cv2.adaptiveThreshold(
             enhanced, 255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -258,7 +471,6 @@ class OCRExtractor:
     def _preprocess_morphological(self, image_data: bytes) -> np.ndarray:
         """
         Morphological preprocessing to clean up noisy text.
-        Optimized for better character separation.
         """
         img = self.preprocessor._load_image(image_data)
         gray = self.preprocessor._to_grayscale(img)
@@ -277,12 +489,72 @@ class OCRExtractor:
         # Otsu's thresholding
         _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         
-        # Very mild morphological operations
         # Connect broken parts
-        kernel = np.ones((2, 1), np.uint8)  # Vertical connection
+        kernel = np.ones((2, 1), np.uint8)
         connected = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
         
         return connected
+    
+    def _preprocess_denoised(self, image_data: bytes) -> np.ndarray:
+        """
+        Color-preserving denoised preprocessing.
+        Uses fastNlMeansDenoisingColored to keep color information,
+        then converts to grayscale with CLAHE for OCR.
+        """
+        img = self.preprocessor._load_image(image_data)
+        
+        # Color-preserving denoising (from user's NutriLensOCR)
+        denoised = cv2.fastNlMeansDenoisingColored(img, None, 10, 10, 7, 21)
+        
+        # Convert to grayscale
+        gray = cv2.cvtColor(denoised, cv2.COLOR_BGR2GRAY)
+        
+        # CLAHE
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(gray)
+        
+        # Resize 2x
+        h, w = enhanced.shape[:2]
+        resized = cv2.resize(enhanced, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+        
+        # Adaptive threshold
+        binary = cv2.adaptiveThreshold(
+            resized, 255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            11, 2
+        )
+        
+        return binary
+    
+    def _preprocess_sharpened(self, image_data: bytes) -> np.ndarray:
+        """
+        Sharpened preprocessing using unsharp mask kernel.
+        Good for images that are slightly out of focus.
+        """
+        img = self.preprocessor._load_image(image_data)
+        
+        # Sharpening kernel (from user's NutriLensOCR)
+        kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+        sharpened = cv2.filter2D(img, -1, kernel)
+        
+        # Convert to grayscale
+        gray = cv2.cvtColor(sharpened, cv2.COLOR_BGR2GRAY)
+        
+        # Resize 2x
+        h, w = gray.shape[:2]
+        resized = cv2.resize(gray, (w * 2, h * 2), interpolation=cv2.INTER_CUBIC)
+        
+        # CLAHE
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(resized)
+        
+        # Otsu threshold
+        _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        return binary
+    
+    # ── Section Extraction ────────────────────────────────────────────
     
     def _extract_section(
         self, 

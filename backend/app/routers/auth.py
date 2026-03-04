@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, ForgotPasswordRequest, ResetPasswordRequest
 from app.services.auth import AuthService
+from app.services.email import send_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -71,6 +72,43 @@ async def logout():
     API completeness.
     """
     return {"message": "Successfully logged out"}
+
+
+@router.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Request a password reset link.
+    
+    - **email**: Registered email address
+    
+    Always returns a generic success message to prevent email enumeration.
+    """
+    auth_service = AuthService(db)
+    
+    # Generate token (returns None if email doesn't exist)
+    token = auth_service.create_reset_token(request.email)
+    
+    # Send email if user exists
+    if token:
+        send_reset_email(request.email, token)
+    
+    # Always return success to prevent email enumeration
+    return {"message": "If an account exists with this email, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Reset password using a valid reset token.
+    
+    - **token**: Reset token from the email link
+    - **new_password**: New password (minimum 6 characters)
+    """
+    auth_service = AuthService(db)
+    
+    auth_service.reset_password(request.token, request.new_password)
+    
+    return {"message": "Password has been reset successfully. You can now log in with your new password."}
 
 
 @router.get("/me", response_model=UserResponse)

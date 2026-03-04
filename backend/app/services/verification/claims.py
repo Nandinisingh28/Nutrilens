@@ -115,7 +115,65 @@ CLAIM_TYPES = {
         'whole grain', 'whole grains', 'whole wheat',
         'made with whole grains', '100% whole grain',
         'wholegrain', 'multigrain'
-    ]
+    ],
+    'GLUTEN_FREE': [
+        'gluten free', 'gluten-free', 'glutenfree', 'no gluten',
+        'without gluten', 'free from gluten', 'zero gluten'
+    ],
+    'VEGAN': [
+        'vegan', '100% vegan', 'plant based', 'plant-based',
+        'no animal products', 'dairy free and egg free',
+        'purely vegan', 'vegan friendly'
+    ],
+    'SOURCE_OF_FIBER': [
+        'source of fiber', 'source of fibre', 'contains fiber',
+        'contains fibre', 'with fiber', 'with fibre', 'good source of fiber'
+    ],
+    'FAT_FREE': [
+        'fat free', 'zero fat', 'no fat', '0 fat', '0g fat',
+        'free of fat', 'without fat'
+    ],
+    'EGGLESS': [
+        'eggless', 'egg free', 'egg-free', 'no egg', 'no eggs',
+        'without egg', 'without eggs', 'contains no egg'
+    ],
+    'WHOLE_WHEAT': [
+        '100% whole wheat', 'whole wheat', 'made with whole wheat',
+        'atta', '100% atta', 'whole wheat flour'
+    ],
+    'MULTIGRAIN': [
+        'multigrain', 'multi grain', 'multi-grain', 'mixed grains',
+        'made with multiple grains'
+    ],
+    'NO_PALM_OIL': [
+        'no palm oil', 'palm oil free', 'without palm oil',
+        'free from palm oil', 'zero palm oil'
+    ],
+    'NO_ADDED_MSG': [
+        'no added msg', 'no msg', 'msg free', 'without msg',
+        'no monosodium glutamate', 'no ajinomoto'
+    ],
+    'LACTOSE_FREE': [
+        'lactose free', 'lactose-free', 'no lactose', 'without lactose',
+        'free from lactose'
+    ],
+    'CHOLESTEROL_FREE': [
+        'cholesterol free', 'no cholesterol', 'zero cholesterol',
+        '0 cholesterol', 'cholesterol-free'
+    ],
+    'WHEY_PROTEIN': [
+        'whey protein', 'whey protein isolate', 'whey protein concentrate',
+        'contains whey', 'with whey'
+    ],
+    'PLANT_PROTEIN': [
+        'plant protein', 'plant-based protein', 'pea protein',
+        'soy protein', 'rice protein', 'hemp protein',
+        'vegan protein', 'plant powered protein'
+    ],
+    'FRUIT_100_PERCENT': [
+        '100% fruit juice', '100% fruit', '100% real fruit',
+        '100% fruit spread', 'pure fruit juice', 'no added anything'
+    ],
 }
 
 
@@ -246,6 +304,20 @@ def get_claim_description(claim_type: str) -> str:
         'NO_ARTIFICIAL_COLORS': 'No Artificial Colors',
         'NO_ARTIFICIAL_FLAVORS': 'No Artificial Flavors',
         'WHOLE_GRAIN': 'Whole Grain',
+        'GLUTEN_FREE': 'Gluten Free',
+        'VEGAN': 'Vegan',
+        'SOURCE_OF_FIBER': 'Source of Fiber',
+        'FAT_FREE': 'Fat Free',
+        'EGGLESS': 'Eggless',
+        'WHOLE_WHEAT': '100% Whole Wheat',
+        'MULTIGRAIN': 'Multigrain',
+        'NO_PALM_OIL': 'No Palm Oil',
+        'NO_ADDED_MSG': 'No Added MSG',
+        'LACTOSE_FREE': 'Lactose Free',
+        'CHOLESTEROL_FREE': 'Cholesterol Free',
+        'WHEY_PROTEIN': 'Whey Protein',
+        'PLANT_PROTEIN': 'Plant Protein',
+        'FRUIT_100_PERCENT': '100% Fruit',
     }
     
     return descriptions.get(claim_type, claim_type.replace('_', ' ').title())
@@ -264,7 +336,7 @@ def is_nutrition_dependent(claim_type: str) -> bool:
     nutrition_claims = {
         'HIGH_PROTEIN', 'GOOD_SOURCE_OF_PROTEIN',
         'LOW_SUGAR', 'HIGH_FIBER', 'LOW_FAT', 'LOW_CALORIES',
-        'LOW_SODIUM',
+        'LOW_SODIUM', 'SOURCE_OF_FIBER', 'FAT_FREE', 'CHOLESTEROL_FREE',
         'DIABETIC_FRIENDLY', 'WEIGHT_LOSS_FRIENDLY',
         'HEALTHY', 'HEART_HEALTHY', 'CHILD_FRIENDLY'
     }
@@ -286,7 +358,10 @@ def is_ingredient_dependent(claim_type: str) -> bool:
         'NO_ADDED_SUGAR', 'NO_SUGAR', 'CLEAN_INGREDIENTS', 'NATURAL',
         'NO_PRESERVATIVES', 'HEALTHY', 'HEART_HEALTHY', 'CHILD_FRIENDLY',
         'NO_TRANS_FAT', 'ORGANIC', 'NO_ARTIFICIAL_COLORS',
-        'NO_ARTIFICIAL_FLAVORS', 'WHOLE_GRAIN', 'HIGH_CALCIUM'
+        'NO_ARTIFICIAL_FLAVORS', 'WHOLE_GRAIN', 'HIGH_CALCIUM',
+        'GLUTEN_FREE', 'VEGAN', 'EGGLESS', 'WHOLE_WHEAT', 'MULTIGRAIN',
+        'NO_PALM_OIL', 'NO_ADDED_MSG', 'LACTOSE_FREE', 'CHOLESTEROL_FREE',
+        'WHEY_PROTEIN', 'PLANT_PROTEIN', 'FRUIT_100_PERCENT'
     }
     
     return claim_type in ingredient_claims

@@ -1,7 +1,6 @@
 """
 Thresholds for Claim Verification
-Loads rules from database (ClaimRule table), falls back to hardcoded defaults.
-Based on FSSAI (Food Safety and Standards Authority of India) guidelines.
+Strict Universal FSSAI Guidelines
 """
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
@@ -20,60 +19,174 @@ class ClaimThreshold:
     secondary_check: str = None  # Optional secondary condition
 
 
-# ── Hardcoded fallback thresholds (original 2 categories) ────────────────
+# ══════════════════════════════════════════════════════════════════════
+# Shared ingredient-only claims
+# ══════════════════════════════════════════════════════════════════════
 
-# Protein Bar Thresholds (per 100g unless specified)
-PROTEIN_BAR_THRESHOLDS: Dict[str, Dict[str, Any]] = {
+_SHARED_INGREDIENT_CLAIMS: Dict[str, Dict[str, Any]] = {
+    'GLUTEN_FREE': {
+        'conditions': [],
+        'ingredient_check': 'gluten_free',
+        'description': 'No gluten-containing ingredients'
+    },
+    'VEGAN': {
+        'conditions': [],
+        'ingredient_check': 'vegan',
+        'description': 'No animal-derived ingredients'
+    },
+    'EGGLESS': {
+        'conditions': [],
+        'ingredient_check': 'eggless',
+        'description': 'No egg-derived ingredients'
+    },
+    'NO_PRESERVATIVES': {
+        'conditions': [],
+        'ingredient_check': 'no_preservatives',
+        'description': 'No artificial preservatives'
+    },
+    'NO_ARTIFICIAL_COLORS': {
+        'conditions': [],
+        'ingredient_check': 'no_artificial_colors',
+        'description': 'No artificial colors'
+    },
+    'NO_ARTIFICIAL_FLAVORS': {
+        'conditions': [],
+        'ingredient_check': 'no_artificial_flavors',
+        'description': 'No artificial flavors'
+    },
+    'CLEAN_INGREDIENTS': {
+        'conditions': [],
+        'ingredient_check': 'clean',
+        'description': 'No artificial additives, preservatives, or sweeteners'
+    },
+    'NATURAL': {
+        'conditions': [],
+        'ingredient_check': 'natural',
+        'description': 'No artificial ingredients'
+    },
+    'NO_PALM_OIL': {
+        'conditions': [],
+        'ingredient_check': 'no_palm_oil',
+        'description': 'No palm oil'
+    },
+    'NO_ADDED_MSG': {
+        'conditions': [],
+        'ingredient_check': 'no_added_msg',
+        'description': 'No added MSG'
+    },
+    'LACTOSE_FREE': {
+        'conditions': [],
+        'ingredient_check': 'lactose_free',
+        'description': 'No lactose or lactose-containing ingredients'
+    },
+    'WHOLE_GRAIN': {
+        'conditions': [],
+        'ingredient_check': 'whole_grain',
+        'description': 'Contains whole grain ingredients'
+    },
+    'WHOLE_WHEAT': {
+        'conditions': [],
+        'ingredient_check': 'whole_wheat',
+        'description': 'Made with whole wheat'
+    },
+    'MULTIGRAIN': {
+        'conditions': [],
+        'ingredient_check': 'multigrain',
+        'description': 'Made with multiple grains'
+    },
+    'WHEY_PROTEIN': {
+        'conditions': [],
+        'ingredient_check': 'whey_protein',
+        'description': 'Contains whey protein'
+    },
+    'PLANT_PROTEIN': {
+        'conditions': [],
+        'ingredient_check': 'plant_protein',
+        'description': 'Contains plant-based protein'
+    },
+    'FRUIT_100_PERCENT': {
+        'conditions': [],
+        'ingredient_check': 'fruit_100_percent',
+        'description': '100% fruit, no artificial additives'
+    },
+    'ORGANIC': {
+        'conditions': [],
+        'ingredient_check': 'organic',
+        'description': 'Organic (partially verifiable from label)'
+    },
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# STRICT UNIVERSAL FSSAI THRESHOLDS 
+# ══════════════════════════════════════════════════════════════════════
+
+FSSAI_UNIVERSAL_THRESHOLDS = {
     'HIGH_PROTEIN': {
-        'conditions': [
-            {'nutrient': 'protein_per_100g', 'comparison': 'gte', 'value': 20}
-        ],
-        'description': 'At least 20g protein per 100g'
+        'conditions': [{'nutrient': 'protein_energy_percent', 'comparison': 'gte', 'value': 20}],
+        'description': 'Protein energy ≥ 20% of total energy'
     },
-    'GOOD_SOURCE_OF_PROTEIN': {
-        'conditions': [
-            {'nutrient': 'protein_per_100g', 'comparison': 'gte', 'value': 10}
-        ],
-        'description': 'At least 10g protein per 100g'
-    },
-    'LOW_SUGAR': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 5}
-        ],
-        'description': 'Not more than 5g sugar per 100g'
-    },
-    'NO_SUGAR': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 0.5}
-        ],
-        'ingredient_check': 'no_sugar',
-        'description': 'Less than 0.5g sugar and no sugar ingredients'
-    },
-    'NO_ADDED_SUGAR': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 5}
-        ],
-        'ingredient_check': 'no_added_sugar',
-        'description': 'No added sugars in ingredients'
+    'SOURCE_OF_PROTEIN': {
+        'conditions': [{'nutrient': 'protein_energy_percent', 'comparison': 'gte', 'value': 12}],
+        'description': 'Protein energy ≥ 12% of total energy'
     },
     'HIGH_FIBER': {
-        'conditions': [
-            {'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 6}
-        ],
-        'description': 'At least 6g fiber per 100g'
+        'conditions': [{'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 6}],
+        'description': 'Fiber ≥ 6g'
+    },
+    'SOURCE_OF_FIBER': {
+        'conditions': [{'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 3}],
+        'description': 'Fiber ≥ 3g'
     },
     'LOW_FAT': {
-        'conditions': [
-            {'nutrient': 'fat_per_100g', 'comparison': 'lte', 'value': 3}
-        ],
-        'description': 'Not more than 3g fat per 100g'
+        'conditions': [{'nutrient': 'fat_per_100g', 'comparison': 'lte', 'value': 3}],
+        'description': 'Fat ≤ 3g'
     },
-    'LOW_CALORIES': {
-        'conditions': [
-            {'nutrient': 'calories_per_100g', 'comparison': 'lte', 'value': 250}
-        ],
-        'description': 'Not more than 250 kcal per 100g'
+    'FAT_FREE': {
+        'conditions': [{'nutrient': 'fat_per_100g', 'comparison': 'lte', 'value': 0.5}],
+        'description': 'Fat ≤ 0.5g'
     },
+    'LOW_SATURATED_FAT': {
+        'conditions': [{'nutrient': 'saturated_fat_per_100g', 'comparison': 'lte', 'value': 1.5}],
+        'description': 'Saturated fat ≤ 1.5g'
+    },
+    'SATURATED_FAT_FREE': {
+        'conditions': [{'nutrient': 'saturated_fat_per_100g', 'comparison': 'lte', 'value': 0.1}],
+        'description': 'Saturated fat ≤ 0.1g'
+    },
+    'TRANS_FAT_FREE': {
+        'conditions': [{'nutrient': 'trans_fat_per_100g', 'comparison': 'lte', 'value': 0.2}],
+        'ingredient_check': 'no_trans_fat',
+        'description': 'Trans fat ≤ 0.2g and no trans fat ingredients'
+    },
+    'SUGAR_FREE': {
+        'conditions': [{'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 0.5}],
+        'ingredient_check': 'no_sugar',
+        'description': 'Sugar ≤ 0.5g and no sugar ingredients'
+    },
+    'NO_ADDED_SUGAR': {
+        'conditions': [],
+        'ingredient_check': 'no_added_sugar',
+        'description': 'No added sugar ingredients (sugar, honey, syrup, etc.)'
+    },
+    'LOW_ENERGY': {
+        'conditions': [{'nutrient': 'calories_per_100g', 'comparison': 'lte', 'value': 40}],
+        'description': 'Energy ≤ 40 kcal'
+    },
+    'ENERGY_FREE': {
+        'conditions': [{'nutrient': 'calories_per_100g', 'comparison': 'lte', 'value': 4}],
+        'description': 'Energy ≤ 4 kcal'
+    },
+    'CHOLESTEROL_FREE': {
+        'conditions': [{'nutrient': 'cholesterol_per_100g', 'comparison': 'lte', 'value': 2}],
+        'ingredient_check': 'cholesterol_free',
+        'description': 'Cholesterol ≤ 2mg and no cholesterol ingredients'
+    },
+    'LOW_CHOLESTEROL': {
+        'conditions': [{'nutrient': 'cholesterol_per_100g', 'comparison': 'lte', 'value': 20}],
+        'description': 'Cholesterol ≤ 20mg'
+    },
+    
+    # Legacy fallbacks for compound claims that might still be used
     'HEALTHY': {
         'conditions': [
             {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 15},
@@ -82,11 +195,6 @@ PROTEIN_BAR_THRESHOLDS: Dict[str, Dict[str, Any]] = {
         ],
         'ingredient_check': 'no_trans_fat',
         'description': 'Balanced nutritional profile with no harmful ingredients'
-    },
-    'CLEAN_INGREDIENTS': {
-        'conditions': [],
-        'ingredient_check': 'clean',
-        'description': 'No artificial additives, preservatives, or sweeteners'
     },
     'DIABETIC_FRIENDLY': {
         'conditions': [
@@ -98,7 +206,7 @@ PROTEIN_BAR_THRESHOLDS: Dict[str, Dict[str, Any]] = {
     'WEIGHT_LOSS_FRIENDLY': {
         'conditions': [
             {'nutrient': 'calories_per_100g', 'comparison': 'lte', 'value': 350},
-            {'nutrient': 'protein_per_100g', 'comparison': 'gte', 'value': 15},
+            {'nutrient': 'protein_energy_percent', 'comparison': 'gte', 'value': 15},
             {'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 4}
         ],
         'description': 'High protein, high fiber, moderate calories'
@@ -111,137 +219,23 @@ PROTEIN_BAR_THRESHOLDS: Dict[str, Dict[str, Any]] = {
         'ingredient_check': 'no_trans_fat',
         'description': 'Low saturated fat, no trans fat, good fiber'
     },
-    'NATURAL': {
-        'conditions': [],
-        'ingredient_check': 'natural',
-        'description': 'No artificial ingredients'
-    },
-    'NO_PRESERVATIVES': {
-        'conditions': [],
-        'ingredient_check': 'no_preservatives',
-        'description': 'No artificial preservatives'
-    },
     'CHILD_FRIENDLY': {
         'conditions': [
             {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 12},
-            {'nutrient': 'protein_per_100g', 'comparison': 'gte', 'value': 5}
+            {'nutrient': 'protein_energy_percent', 'comparison': 'gte', 'value': 5}
         ],
         'ingredient_check': 'no_artificial',
         'description': 'Moderate sugar, adequate protein, no artificial additives'
-    }
-}
-
-# Breakfast Cereal Thresholds (per 100g unless specified)
-CEREAL_THRESHOLDS: Dict[str, Dict[str, Any]] = {
-    'HIGH_PROTEIN': {
-        'conditions': [
-            {'nutrient': 'protein_per_100g', 'comparison': 'gte', 'value': 10}
-        ],
-        'description': 'At least 10g protein per 100g'
-    },
-    'GOOD_SOURCE_OF_PROTEIN': {
-        'conditions': [
-            {'nutrient': 'protein_per_100g', 'comparison': 'gte', 'value': 6}
-        ],
-        'description': 'At least 6g protein per 100g'
     },
     'LOW_SUGAR': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 10}
-        ],
-        'description': 'Not more than 10g sugar per 100g'
+        'conditions': [{'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 5}],
+        'description': 'Sugar ≤ 5g per 100g'
     },
-    'NO_SUGAR': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 0.5}
-        ],
-        'ingredient_check': 'no_sugar',
-        'description': 'Less than 0.5g sugar and no sugar ingredients'
-    },
-    'NO_ADDED_SUGAR': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 5}
-        ],
-        'ingredient_check': 'no_added_sugar',
-        'description': 'No added sugars in ingredients'
-    },
-    'HIGH_FIBER': {
-        'conditions': [
-            {'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 6}
-        ],
-        'description': 'At least 6g fiber per 100g'
-    },
-    'LOW_FAT': {
-        'conditions': [
-            {'nutrient': 'fat_per_100g', 'comparison': 'lte', 'value': 3}
-        ],
-        'description': 'Not more than 3g fat per 100g'
-    },
-    'LOW_CALORIES': {
-        'conditions': [
-            {'nutrient': 'calories_per_100g', 'comparison': 'lte', 'value': 380}
-        ],
-        'description': 'Not more than 380 kcal per 100g'
-    },
-    'HEALTHY': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 15},
-            {'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 4}
-        ],
-        'ingredient_check': 'no_trans_fat',
-        'description': 'Balanced nutritional profile'
-    },
-    'CLEAN_INGREDIENTS': {
-        'conditions': [],
-        'ingredient_check': 'clean',
-        'description': 'No artificial additives'
-    },
-    'DIABETIC_FRIENDLY': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 8},
-            {'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 5}
-        ],
-        'description': 'Low sugar with high fiber'
-    },
-    'WEIGHT_LOSS_FRIENDLY': {
-        'conditions': [
-            {'nutrient': 'calories_per_100g', 'comparison': 'lte', 'value': 380},
-            {'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 6}
-        ],
-        'description': 'High fiber, moderate calories'
-    },
-    'HEART_HEALTHY': {
-        'conditions': [
-            {'nutrient': 'fat_per_100g', 'comparison': 'lte', 'value': 5},
-            {'nutrient': 'fiber_per_100g', 'comparison': 'gte', 'value': 5}
-        ],
-        'ingredient_check': 'no_trans_fat',
-        'description': 'Low fat, high fiber, no trans fat'
-    },
-    'NATURAL': {
-        'conditions': [],
-        'ingredient_check': 'natural',
-        'description': 'No artificial ingredients'
-    },
-    'NO_PRESERVATIVES': {
-        'conditions': [],
-        'ingredient_check': 'no_preservatives',
-        'description': 'No artificial preservatives'
-    },
-    'CHILD_FRIENDLY': {
-        'conditions': [
-            {'nutrient': 'sugar_per_100g', 'comparison': 'lte', 'value': 15}
-        ],
-        'ingredient_check': 'no_artificial',
-        'description': 'Moderate sugar, no artificial additives'
-    }
 }
 
-# Hardcoded fallback mapping
-_HARDCODED_THRESHOLDS = {
-    'PROTEIN_BAR': PROTEIN_BAR_THRESHOLDS,
-    'BREAKFAST_CEREAL': CEREAL_THRESHOLDS,
-}
+# Merge them all into a single dictionary
+UNIVERSAL_THRESHOLDS = dict(_SHARED_INGREDIENT_CLAIMS)
+UNIVERSAL_THRESHOLDS.update(FSSAI_UNIVERSAL_THRESHOLDS)
 
 
 def _build_thresholds_from_db(db, category: str) -> Optional[Dict[str, Dict[str, Any]]]:
@@ -280,19 +274,11 @@ def _build_thresholds_from_db(db, category: str) -> Optional[Dict[str, Dict[str,
 
 def get_thresholds(category: str, db=None) -> Dict[str, Dict[str, Any]]:
     """
-    Get thresholds for a specific product category.
+    Get strict universal FSSAI thresholds (ignoring legacy category logic).
     
     Priority:
-      1. Database (ClaimRule table) — works for all 12 categories
-      2. Hardcoded fallback — for PROTEIN_BAR and BREAKFAST_CEREAL only
-      3. Protein bar defaults as last resort
-
-    Args:
-        category: Product category string
-        db: Optional SQLAlchemy Session for DB-backed lookup
-        
-    Returns:
-        Dictionary of claim thresholds
+      1. Database (ClaimRule table)
+      2. Universal fallback (FSSAI)
     """
     category_upper = category.upper().replace(' ', '_')
 
@@ -302,8 +288,8 @@ def get_thresholds(category: str, db=None) -> Dict[str, Dict[str, Any]]:
         if db_thresholds:
             return db_thresholds
 
-    # Hardcoded fallback
-    return _HARDCODED_THRESHOLDS.get(category_upper, PROTEIN_BAR_THRESHOLDS)
+    # Strict Universal FSSAI rules
+    return UNIVERSAL_THRESHOLDS
 
 
 def evaluate_condition(
@@ -312,18 +298,7 @@ def evaluate_condition(
     comparison: str,
     value: float
 ) -> bool:
-    """
-    Evaluate a single nutritional condition.
-    
-    Args:
-        nutrition: Dictionary with nutrition values
-        nutrient: Key for the nutrient to check
-        comparison: Comparison operator
-        value: Threshold value
-        
-    Returns:
-        True if condition is met
-    """
+    """Evaluate a single nutritional condition."""
     actual = nutrition.get(nutrient)
     
     if actual is None:

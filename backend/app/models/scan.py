@@ -101,6 +101,10 @@ class ExtractedNutrition(Base):
     fiber_per_100g = Column(Float, nullable=True)
     calories_per_100g = Column(Float, nullable=True)
     sodium_per_100g = Column(Float, nullable=True)
+    carbohydrates_per_100g = Column(Float, nullable=True)
+    saturated_fat_per_100g = Column(Float, nullable=True)
+    trans_fat_per_100g = Column(Float, nullable=True)
+    cholesterol_per_100g = Column(Float, nullable=True)
     raw_text = Column(Text, nullable=True)
     
     # Relationships
@@ -118,7 +122,11 @@ class ExtractedNutrition(Base):
             "fat": self.fat_per_100g,
             "fiber": self.fiber_per_100g,
             "calories": self.calories_per_100g,
-            "sodium": self.sodium_per_100g
+            "sodium": self.sodium_per_100g,
+            "carbohydrates": self.carbohydrates_per_100g,
+            "saturated_fat": self.saturated_fat_per_100g,
+            "trans_fat": self.trans_fat_per_100g,
+            "cholesterol": self.cholesterol_per_100g
         }
 
 

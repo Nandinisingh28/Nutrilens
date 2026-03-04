@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, AlertTriangle, CheckCircle, XCircle, HelpCircle,
-    AlertCircle, Shield, Info, Beaker, TrendingUp, TrendingDown,
-    Minus, ChevronDown, ChevronUp
+    AlertCircle, Shield, Info, ChevronDown, ChevronUp, Lightbulb, Star
 } from 'lucide-react';
 import VerdictBadge from '../components/VerdictBadge';
 import ScoreCircle from '../components/ScoreCircle';
@@ -29,106 +28,270 @@ const getCategoryLabel = (category) => {
     return labels[category] || category;
 };
 
+/* Ingredient alternative suggestions */
+const INGREDIENT_ALTERNATIVES = {
+    /* ── Artificial Sweeteners ── */
+    'aspartame': { why: 'Controversial artificial sweetener linked to headaches in some people.', alt: 'Stevia, Monk Fruit, or Erythritol' },
+    'sucralose': { why: 'Artificial sweetener that may alter gut bacteria.', alt: 'Stevia or Monk Fruit extract' },
+    'saccharin': { why: 'Oldest artificial sweetener; some studies raise concerns.', alt: 'Stevia, Date Sugar, or Coconut Sugar' },
+    'acesulfame': { why: 'Often used with other sweeteners; limited long-term human data.', alt: 'Stevia or Erythritol' },
+    'ins 950': { why: 'Acesulfame Potassium — artificial sweetener with limited long-term data.', alt: 'Stevia (INS 960) or Jaggery' },
+    'ins 951': { why: 'Aspartame — controversial artificial sweetener.', alt: 'Stevia (INS 960) or Raw Honey' },
+    'ins 955': { why: 'Sucralose — artificial sweetener that may affect gut microbiome.', alt: 'Stevia or Coconut Sugar' },
+    'ins 954': { why: 'Saccharin — one of the oldest artificial sweeteners with mixed safety data.', alt: 'Stevia or Date Palm Sugar (Khajoor)' },
+
+    /* ── Processed Sugars ── */
+    'high fructose corn syrup': { why: 'Rapidly metabolised fructose linked to insulin resistance.', alt: 'Raw Honey, Maple Syrup, or Coconut Sugar' },
+    'corn syrup': { why: 'Highly processed added sugar with no nutritional value.', alt: 'Medjool Date Paste or Brown Rice Syrup' },
+    'maltodextrin': { why: 'High glycemic index carbohydrate that spikes blood sugar.', alt: 'Tapioca Starch or Arrowroot Powder' },
+    'invert sugar': { why: 'Processed sugar syrup; essentially liquid sugar with no nutrients.', alt: 'Jaggery (Gur), Honey, or Coconut Sugar' },
+    'liquid glucose': { why: 'Refined simple sugar with extremely high glycemic index.', alt: 'Date Syrup or Rice Malt Syrup' },
+    'dextrose': { why: 'Pure glucose derived from corn; spikes blood sugar rapidly.', alt: 'Coconut Sugar or Jaggery' },
+
+    /* ── Preservatives ── */
+    'sodium benzoate': { why: 'Preservative that can form benzene (a carcinogen) with Vitamin C.', alt: 'Rosemary Extract (natural preservative)' },
+    'potassium sorbate': { why: 'Preservative that may cause allergic reactions in sensitive individuals.', alt: 'Vitamin E (natural antioxidant)' },
+    'bha': { why: 'Possible carcinogen at high doses; banned in some countries.', alt: 'Mixed Tocopherols (Vitamin E)' },
+    'bht': { why: 'Synthetic antioxidant preservative, potential endocrine disruptor.', alt: 'Rosemary Extract or Ascorbic Acid' },
+    'ins 211': { why: 'Sodium Benzoate — can form benzene with Vitamin C (INS 300).', alt: 'Rosemary Extract or Citric Acid' },
+    'ins 202': { why: 'Potassium Sorbate — may cause skin/allergic reactions in sensitive people.', alt: 'Vitamin E (Tocopherol) or Neem Extract' },
+    'ins 320': { why: 'BHA — synthetic antioxidant; possible carcinogen.', alt: 'Mixed Tocopherols (Vitamin E)' },
+    'ins 321': { why: 'BHT — synthetic antioxidant; potential endocrine disruptor.', alt: 'Rosemary Extract or Ascorbic Acid' },
+    'ins 223': { why: 'Sodium Metabisulphite — can trigger asthma and allergic reactions.', alt: 'Ascorbic Acid (Vitamin C)' },
+    'ins 220': { why: 'Sulphur Dioxide — irritant; can trigger asthma in sensitive individuals.', alt: 'Citric Acid or Ascorbic Acid' },
+    'sodium nitrite': { why: 'Used in processed meats; can form carcinogenic nitrosamines.', alt: 'Celery Powder or Sea Salt' },
+    'tbhq': { why: 'Synthetic preservative; may cause nausea and vision issues at high doses.', alt: 'Rosemary Extract or Vitamin E' },
+
+    /* ── Artificial Colors / Dyes ── */
+    'red 40': { why: 'Artificial dye linked to hyperactivity in children.', alt: 'Beet Juice or Lycopene (natural red)' },
+    'yellow 5': { why: 'Artificial dye (Tartrazine) linked to hyperactivity; banned in some EU products.', alt: 'Turmeric Extract or Beta-Carotene' },
+    'tartrazine': { why: 'Artificial dye linked to hyperactivity; banned/restricted in several countries.', alt: 'Turmeric or Annatto Extract' },
+    'ins 102': { why: 'Tartrazine (Yellow 5) — linked to hyperactivity and allergic reactions.', alt: 'Turmeric Extract or Saffron' },
+    'ins 110': { why: 'Sunset Yellow — artificial dye linked to hyperactivity in children.', alt: 'Carrot or Pumpkin Extract' },
+    'ins 129': { why: 'Allura Red — artificial dye; may cause allergic reactions.', alt: 'Beetroot Powder or Pomegranate Extract' },
+    'ins 133': { why: 'Brilliant Blue — synthetic dye; rarely used in natural foods.', alt: 'Spirulina Extract or Butterfly Pea Flower' },
+    'ins 127': { why: 'Erythrosine (Red 3) — restricted in some countries for thyroid concerns.', alt: 'Beetroot or Hibiscus Extract' },
+    'ins 150': { why: 'Caramel Color — some variants (Class III/IV) may contain carcinogenic 4-MEI.', alt: 'Molasses or Date Syrup for natural color' },
+    'caramel color': { why: 'Some manufacturing processes create potentially carcinogenic 4-MEI compound.', alt: 'Molasses, Cocoa Powder, or Date Syrup' },
+
+    /* ── Unhealthy Fats & Oils (Indian-specific) ── */
+    'partially hydrogenated': { why: 'Source of trans fats, strongly linked to heart disease.', alt: 'Cold-pressed Coconut Oil or Olive Oil' },
+    'palm oil': { why: 'High saturated fat; environmental concerns around palm deforestation.', alt: 'Sunflower Oil or Cold-pressed Coconut Oil' },
+    'palmolein oil': { why: 'High saturated fat; environmental concerns around palm deforestation.', alt: 'Sunflower Oil, Rice Bran Oil, or Olive Oil' },
+    'vanaspati': { why: 'Hydrogenated vegetable fat (Indian dalda); major source of trans fats.', alt: 'Desi Ghee, Coconut Oil, or Mustard Oil' },
+    'dalda': { why: 'Hydrogenated fat (vanaspati); contains harmful trans fats linked to heart disease.', alt: 'Pure Desi Ghee or Cold-pressed Groundnut Oil' },
+    'hydrogenated vegetable oil': { why: 'Contains trans fats created during hydrogenation; raises LDL cholesterol.', alt: 'Desi Ghee, Olive Oil, or Rice Bran Oil' },
+    'interesterified fat': { why: 'Chemically modified fat; emerging concerns about metabolic effects.', alt: 'Cold-pressed Coconut Oil or Desi Ghee' },
+    'shortening': { why: 'Usually made from hydrogenated oils; source of trans fats.', alt: 'Butter, Desi Ghee, or Coconut Oil' },
+
+    /* ── Refined Flour ── */
+    'maida': { why: 'Refined white flour stripped of fiber and nutrients; high glycemic index.', alt: 'Whole Wheat Atta, Ragi Flour, or Jowar Flour' },
+    'refined wheat flour': { why: 'Bleached and stripped of bran/germ; spikes blood sugar.', alt: 'Whole Wheat Flour, Multigrain Atta, or Besan' },
+
+    /* ── Flavor Enhancers ── */
+    'monosodium glutamate': { why: 'Flavour enhancer that can cause sensitivity in some people.', alt: 'Nutritional Yeast or Mushroom Powder' },
+    'msg': { why: 'Flavour enhancer; some people report headaches or flushing.', alt: 'Nutritional Yeast or Natural Umami (e.g., Tomato Powder)' },
+    'ajinomoto': { why: 'Brand name for MSG; can cause "Chinese restaurant syndrome" in sensitive people.', alt: 'Mushroom Powder, Nutritional Yeast, or Dried Tomato' },
+    'ins 621': { why: 'Monosodium Glutamate (MSG) — flavour enhancer causing sensitivity in some.', alt: 'Nutritional Yeast, Mushroom Powder, or Kasuri Methi' },
+    'ins 627': { why: 'Disodium Guanylate — often used with MSG; amplifies umami flavour.', alt: 'Sun-dried Tomato Powder or Mushroom Extract' },
+    'ins 631': { why: 'Disodium Inosinate — MSG booster; usually derived from animal sources.', alt: 'Seaweed Flakes (Nori) or Nutritional Yeast' },
+    'ins 635': { why: 'Disodium 5-Ribonucleotides — synthetic flavour enhancer blend.', alt: 'Natural Umami: Soy Sauce, Miso, or Mushroom Powder' },
+
+    /* ── Emulsifiers & Thickeners ── */
+    'ins 322': { why: 'Soy Lecithin — usually from GMO soy; allergen risk for soy-sensitive people.', alt: 'Sunflower Lecithin' },
+    'ins 407': { why: 'Carrageenan — linked to intestinal inflammation in animal studies.', alt: 'Guar Gum (INS 412) or Agar-Agar' },
+    'carrageenan': { why: 'Seaweed-derived thickener linked to gut inflammation in studies.', alt: 'Agar-Agar, Guar Gum, or Xanthan Gum' },
+    'polysorbate 80': { why: 'Synthetic emulsifier; may disrupt gut barrier in some studies.', alt: 'Sunflower Lecithin or Gum Arabic' },
+    'ins 433': { why: 'Polysorbate 80 — synthetic emulsifier with emerging gut health concerns.', alt: 'Sunflower Lecithin or Acacia Gum' },
+
+    /* ── Other Additives ── */
+    'sodium caseinate': { why: 'Processed milk protein; hidden dairy allergen in "non-dairy" products.', alt: 'Pea Protein or Almond Protein' },
+    'titanium dioxide': { why: 'White colorant (INS 171); banned in EU since 2022 due to genotoxicity concerns.', alt: 'Rice Starch or Calcium Carbonate for whitening' },
+    'ins 171': { why: 'Titanium Dioxide — banned in EU foods since 2022 over safety concerns.', alt: 'Rice Flour or Calcium Carbonate' },
+    'potassium bromate': { why: 'Flour improver classified as possibly carcinogenic; banned in many countries.', alt: 'Ascorbic Acid (Vitamin C) as dough improver' },
+};
+
 const verdictMeta = {
-    TRUE: {
-        bg: 'rgba(34,197,94,.12)',
-        border: 'rgba(34,197,94,.40)',
-        accent: '#22c55e',
-        icon: CheckCircle,
-        heading: 'Claim Verified ✅',
-        message: 'The claim on this product is supported by the extracted nutrition and ingredient data.',
-    },
-    PARTIALLY_TRUE: {
-        bg: 'rgba(234,179,8,.10)',
-        border: 'rgba(234,179,8,.35)',
-        accent: '#eab308',
-        icon: AlertCircle,
-        heading: 'Partially True ⚠️',
-        message: 'Some aspects of the claim hold up, but not everything checks out.',
-    },
-    MISLEADING: {
-        bg: 'rgba(249,115,22,.10)',
-        border: 'rgba(249,115,22,.35)',
-        accent: '#f97316',
-        icon: AlertTriangle,
-        heading: 'Potentially Misleading ⚠️',
-        message: 'The claim appears to be misleading based on the available data. Exercise caution.',
-    },
-    FALSE: {
-        bg: 'rgba(239,68,68,.10)',
-        border: 'rgba(239,68,68,.35)',
-        accent: '#ef4444',
-        icon: XCircle,
-        heading: 'Claim Is False ❌',
-        message: 'The data contradicts this claim. The product does NOT meet the criteria.',
-    },
-    UNVERIFIABLE: {
-        bg: 'rgba(148,163,184,.10)',
-        border: 'rgba(148,163,184,.30)',
-        accent: '#94a3b8',
-        icon: HelpCircle,
-        heading: 'Cannot Verify ❓',
-        message: 'Insufficient data was extracted to fully verify or deny this claim.',
-    },
+    TRUE: { bg: 'rgba(34,197,94,.10)', border: 'rgba(34,197,94,.35)', accent: '#22c55e', icon: CheckCircle, heading: 'Claim Verified', message: 'The claim on this product is supported by the nutrition facts and ingredient data we extracted.' },
+    PARTIALLY_TRUE: { bg: 'rgba(234,179,8,.10)', border: 'rgba(234,179,8,.35)', accent: '#eab308', icon: AlertCircle, heading: 'Partially True', message: 'Some parts of the claim check out, but not everything. See the breakdown below.' },
+    MISLEADING: { bg: 'rgba(249,115,22,.10)', border: 'rgba(249,115,22,.35)', accent: '#f97316', icon: AlertTriangle, heading: 'Potentially Misleading', message: 'The claim appears misleading based on the available data. Exercise caution.' },
+    FALSE: { bg: 'rgba(239,68,68,.10)', border: 'rgba(239,68,68,.35)', accent: '#ef4444', icon: XCircle, heading: 'Claim Is False', message: 'The data directly contradicts this claim. The product does NOT meet the criteria.' },
+    UNVERIFIABLE: { bg: 'rgba(148,163,184,.10)', border: 'rgba(148,163,184,.30)', accent: '#94a3b8', icon: HelpCircle, heading: 'Cannot Verify', message: 'Insufficient data was extracted to verify or deny this claim. Try a clearer photo.' },
+};
+
+const subVerdictStyle = {
+    TRUE: { bg: 'rgba(34,197,94,.06)', border: '#22c55e' },
+    PARTIALLY_TRUE: { bg: 'rgba(234,179,8,.06)', border: '#eab308' },
+    MISLEADING: { bg: 'rgba(249,115,22,.06)', border: '#f97316' },
+    FALSE: { bg: 'rgba(239,68,68,.06)', border: '#ef4444' },
+    UNVERIFIABLE: { bg: 'rgba(148,163,184,.05)', border: '#94a3b8' },
 };
 
 const getVerdictInfo = (v) => verdictMeta[v] || verdictMeta.UNVERIFIABLE;
 
-/* ──────────────  Sub-claim card colors  ────────── */
-
-const subVerdictStyle = {
-    TRUE: { bg: 'rgba(34,197,94,.08)', border: '#22c55e' },
-    PARTIALLY_TRUE: { bg: 'rgba(234,179,8,.08)', border: '#eab308' },
-    MISLEADING: { bg: 'rgba(249,115,22,.08)', border: '#f97316' },
-    FALSE: { bg: 'rgba(239,68,68,.08)', border: '#ef4444' },
-    UNVERIFIABLE: { bg: 'rgba(148,163,184,.06)', border: '#94a3b8' },
-};
-
-/* ──────────────  Nutrition bar  ────────────────── */
-
-function NutritionBar({ label, value, unit, maxValue, color = 'var(--color-primary-500)', icon }) {
+/* ──────────── Nutrition Row (table-style) ──────────────── */
+function NutritionRow({ label, value, unit, maxValue, icon, highlight }) {
     if (value === null || value === undefined) return null;
     const pct = Math.min((value / maxValue) * 100, 100);
     const displayVal = typeof value === 'number' ? value.toFixed(1) : value;
-
-    // Color based on percentage of max
-    let barColor = color;
-    if (pct > 80) barColor = '#ef4444';
-    else if (pct > 60) barColor = '#f97316';
-    else if (pct > 40) barColor = '#eab308';
-    else barColor = '#22c55e';
+    const valColor = pct > 80 ? '#ef4444' : pct > 60 ? '#f97316' : pct > 35 ? '#eab308' : '#22c55e';
 
     return (
-        <div style={{ marginBottom: '14px' }}>
-            <div style={{
-                display: 'flex', justifyContent: 'space-between',
-                alignItems: 'center', marginBottom: '6px'
+        <div style={{
+            display: 'grid', gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center', padding: '10px 0',
+            borderBottom: '1px solid rgba(255,255,255,.04)',
+        }}>
+            <span style={{ fontSize: 13, color: highlight ? 'var(--color-neutral-100)' : 'var(--color-neutral-300)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: highlight ? 600 : 400 }}>
+                <span style={{ fontSize: 15, width: 22, textAlign: 'center' }}>{icon}</span>
+                {label}
+            </span>
+            <span style={{
+                fontSize: 14, fontWeight: 700, color: 'var(--color-neutral-50)',
+                background: `${valColor}18`, border: `1px solid ${valColor}40`,
+                padding: '3px 12px', borderRadius: 8, minWidth: 70, textAlign: 'center',
             }}>
-                <span style={{
-                    fontSize: '13px', color: 'var(--color-neutral-300)',
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    fontWeight: 500
-                }}>
-                    {icon && <span style={{ fontSize: '14px' }}>{icon}</span>}
-                    {label}
-                </span>
-                <span style={{
-                    fontSize: '14px', fontWeight: 700,
-                    color: 'var(--color-neutral-100)'
-                }}>
-                    {displayVal}<span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-neutral-400)', marginLeft: '2px' }}>{unit}</span>
-                </span>
+                {displayVal}<span style={{ fontSize: 10, fontWeight: 400, color: 'var(--color-neutral-400)', marginLeft: 2 }}>{unit}</span>
+            </span>
+            <div style={{ paddingLeft: 16 }}>
+                <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,.06)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 3, width: `${pct}%`, background: `linear-gradient(90deg, ${valColor}99, ${valColor})`, transition: 'width 0.8s cubic-bezier(.4,0,.2,1)' }} />
+                </div>
             </div>
-            <div style={{
-                height: '8px', borderRadius: '4px',
-                background: 'rgba(255,255,255,.06)',
-                overflow: 'hidden'
-            }}>
-                <div style={{
-                    height: '100%', borderRadius: '4px',
-                    width: `${pct}%`, background: barColor,
-                    transition: 'width 0.8s cubic-bezier(.4,0,.2,1)'
-                }} />
+        </div>
+    );
+}
+
+/* ──── Nutrition Section Divider ────── */
+function NutritionDivider({ label }) {
+    return (
+        <div style={{ paddingTop: 14, paddingBottom: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: 'var(--color-neutral-500)' }}>{label}</span>
+        </div>
+    );
+}
+
+/* ──────────── Health Score Breakdown ──────────────── */
+function HealthScoreBreakdown({ score }) {
+    const [open, setOpen] = useState(false);
+
+    const rating = score >= 80 ? { label: 'Excellent', color: '#22c55e', emoji: '🌟' }
+        : score >= 65 ? { label: 'Good', color: '#86efac', emoji: '✅' }
+            : score >= 50 ? { label: 'Average', color: '#eab308', emoji: '⚠️' }
+                : score >= 35 ? { label: 'Poor', color: '#f97316', emoji: '🔴' }
+                    : { label: 'Unhealthy', color: '#ef4444', emoji: '❌' };
+
+    const factors = [
+        { icon: '🥩', label: 'Protein content', effect: 'Adds up to +15 pts for high protein foods' },
+        { icon: '🍬', label: 'Sugar content', effect: 'Penalty of up to -15 pts for excess sugar' },
+        { icon: '🌾', label: 'Dietary fiber', effect: 'Up to +12 pts for high fiber' },
+        { icon: '🧈', label: 'Total fat', effect: 'Penalty up to -10 pts for very high fat' },
+        { icon: '🧂', label: 'Sodium', effect: 'Penalty up to -10 pts for excess sodium' },
+        { icon: '🔥', label: 'Calories', effect: 'Penalty of -5 pts if >450 kcal / 100g' },
+        { icon: '⚗️', label: 'Artificial sweeteners', effect: '-8 pts if detected in ingredients' },
+        { icon: '🧪', label: 'Preservatives', effect: '-5 pts per preservative found' },
+        { icon: '⚠️', label: 'Trans fats', effect: '-15 pts if trans fat source detected' },
+    ];
+
+    return (
+        <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <span style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>Nutritional Quality Rating: </span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: rating.color }}>{rating.emoji} {rating.label}</span>
+                </div>
+                <button onClick={() => setOpen(!open)} style={{
+                    background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.10)',
+                    borderRadius: 8, padding: '6px 14px', cursor: 'pointer',
+                    color: 'var(--color-neutral-300)', fontSize: 12,
+                    display: 'flex', alignItems: 'center', gap: 6
+                }}>
+                    {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    How is this calculated?
+                </button>
+            </div>
+
+            {open && (
+                <div style={{ marginTop: 14, padding: '16px 18px', background: 'rgba(255,255,255,.03)', borderRadius: 10, border: '1px solid rgba(255,255,255,.08)' }}>
+                    <p style={{ fontSize: 12, color: 'var(--color-neutral-400)', marginBottom: 12 }}>
+                        The Health Score starts at <strong style={{ color: 'var(--color-neutral-200)' }}>50 (neutral)</strong> and adjusts up or down based on the following factors:
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 8 }}>
+                        {factors.map((f, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 12px', background: 'rgba(255,255,255,.03)', borderRadius: 8 }}>
+                                <span style={{ fontSize: 16 }}>{f.icon}</span>
+                                <div>
+                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-neutral-200)' }}>{f.label}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--color-neutral-500)', marginTop: 2 }}>{f.effect}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--color-neutral-600)', marginTop: 12 }}>
+                        * Score is further adjusted based on the product category. E.g., chocolates are benchmarked differently than protein bars.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ──────────── Ingredient Alternative Card ──────────────── */
+function IngredientAlternatives({ warnings }) {
+    if (!warnings || warnings.length === 0) return null;
+
+    // Match warnings against alternatives database
+    const alts = [];
+    for (const w of warnings) {
+        const wLower = w.toLowerCase();
+        for (const [key, data] of Object.entries(INGREDIENT_ALTERNATIVES)) {
+            if (wLower.includes(key) && !alts.find(a => a.key === key)) {
+                alts.push({ key, name: key.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '), ...data });
+            }
+        }
+    }
+
+    if (alts.length === 0) return null;
+
+    return (
+        <div className="results-section" style={{ marginBottom: 24, padding: '28px 32px' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: '#fbbf24', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Lightbulb size={20} color="#fbbf24" />
+                Healthier Alternatives
+                <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-neutral-500)', background: 'rgba(251,191,36,.10)', padding: '2px 10px', borderRadius: 10 }}>
+                    {alts.length} found
+                </span>
+            </h3>
+            <p style={{ fontSize: 12, color: 'var(--color-neutral-500)', marginBottom: 18, lineHeight: 1.5 }}>
+                These ingredients have healthier substitutes you can look for when choosing products:
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 12 }}>
+                {alts.map((alt, idx) => (
+                    <div key={idx} style={{
+                        background: 'rgba(255,255,255,.02)',
+                        border: '1px solid rgba(255,255,255,.06)',
+                        borderRadius: 14, padding: 0, overflow: 'hidden',
+                    }}>
+                        {/* Flagged ingredient */}
+                        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(251,191,36,.10)', background: 'rgba(251,191,36,.04)' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 15 }}>🚫</span> {alt.name}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: 'var(--color-neutral-400)', lineHeight: 1.5 }}>
+                                {alt.why}
+                            </div>
+                        </div>
+                        {/* Better alternative */}
+                        <div style={{ padding: '12px 18px', background: 'rgba(34,197,94,.03)' }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 4 }}>
+                                ✅ Switch to
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-neutral-100)' }}>
+                                {alt.alt}
+                            </div>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -143,7 +306,6 @@ function Results() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [showOcr, setShowOcr] = useState(false);
-    const [showExplanation, setShowExplanation] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -157,11 +319,10 @@ function Results() {
         })();
     }, [id]);
 
-    /* ---------- render guards ---------- */
     if (loading) {
         return (
-            <div className="loading-overlay" style={{ position: 'static', minHeight: '400px' }}>
-                <div className="spinner spinner-lg"></div>
+            <div className="loading-overlay" style={{ position: 'static', minHeight: 400 }}>
+                <div className="spinner spinner-lg" />
                 <p className="loading-text">Analysing results…</p>
             </div>
         );
@@ -184,192 +345,104 @@ function Results() {
     const VIcon = vi.icon;
     const n = scan.nutrition || {};
 
-    /* ──────────────────── JSX ──────────────────── */
     return (
         <div className="animate-fadeIn" style={{ maxWidth: 960, margin: '0 auto' }}>
 
             {/* ───── Back ───── */}
-            <button className="btn btn-ghost" onClick={() => navigate('/dashboard')}
-                style={{ marginBottom: '24px' }}>
+            <button className="btn btn-ghost" onClick={() => navigate('/dashboard')} style={{ marginBottom: 24 }}>
                 <ArrowLeft size={18} /> Back to Dashboard
             </button>
 
-            {/* ═══════════════ VERDICT HERO CARD ═══════════════ */}
+            {/* ═══ VERDICT HERO ═══ */}
             <div style={{
-                background: vi.bg,
-                border: `1.5px solid ${vi.border}`,
-                borderRadius: '16px',
-                padding: '32px',
-                marginBottom: '28px',
-                position: 'relative',
-                overflow: 'hidden',
+                background: vi.bg, border: `1.5px solid ${vi.border}`,
+                borderRadius: 20, padding: '32px 36px', marginBottom: 24,
+                position: 'relative', overflow: 'hidden',
             }}>
-                {/* glow */}
-                <div style={{
-                    position: 'absolute', top: -60, right: -60,
-                    width: 180, height: 180, borderRadius: '50%',
-                    background: vi.accent, opacity: 0.06, filter: 'blur(40px)', pointerEvents: 'none'
-                }} />
+                <div style={{ position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: '50%', background: vi.accent, opacity: 0.05, filter: 'blur(50px)', pointerEvents: 'none' }} />
 
-                {/* category pill */}
-                <span style={{
-                    display: 'inline-block',
-                    fontSize: '12px', fontWeight: 600,
-                    color: 'var(--color-neutral-300)',
-                    background: 'rgba(255,255,255,.06)',
-                    padding: '4px 12px', borderRadius: '20px',
-                    marginBottom: '12px', letterSpacing: '.3px'
-                }}>
-                    {getCategoryLabel(scan.category)} &nbsp;•&nbsp; {scan.scan_mode} Scan
-                </span>
-
-                {/* claim */}
-                <h1 style={{
-                    fontSize: '26px', fontWeight: 700,
-                    color: 'var(--color-neutral-50)',
-                    marginBottom: '16px', lineHeight: 1.3,
-                }}>
-                    Claim: <span style={{ color: vi.accent }}>"{scan.user_claim}"</span>
-                </h1>
-
-                {/* verdict row */}
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: '14px',
-                    marginBottom: '14px', flexWrap: 'wrap'
-                }}>
-                    <VIcon size={32} color={vi.accent} />
-                    <span style={{
-                        fontSize: '22px', fontWeight: 800,
-                        color: vi.accent, letterSpacing: '.3px',
-                    }}>
-                        {vi.heading}
+                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-neutral-400)', background: 'rgba(255,255,255,.06)', padding: '4px 12px', borderRadius: 20, letterSpacing: '.3px' }}>
+                        {getCategoryLabel(scan.category)} &nbsp;•&nbsp; {scan.scan_mode} Scan
                     </span>
                 </div>
 
-                <p style={{
-                    fontSize: '15px', color: 'var(--color-neutral-300)',
-                    lineHeight: 1.7, maxWidth: 600
-                }}>
+                <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-neutral-50)', marginBottom: 16, lineHeight: 1.3 }}>
+                    Verified Claim: <span style={{ color: vi.accent }}>"{scan.user_claim}"</span>
+                </h1>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                    <VIcon size={32} color={vi.accent} />
+                    <span style={{ fontSize: 22, fontWeight: 800, color: vi.accent }}>{vi.heading}</span>
+                </div>
+
+                <p style={{ fontSize: 14, color: 'var(--color-neutral-300)', lineHeight: 1.7, maxWidth: 620 }}>
                     {vi.message}
                 </p>
             </div>
 
-            {/* ═══════════════ SCORES ROW ═══════════════ */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: scan.health_score != null ? '1fr 1fr' : '1fr',
-                gap: '20px',
-                marginBottom: '28px'
-            }}>
-                {/* Verification Score */}
+            {/* ═══ SCORES ROW ═══ */}
+            <div style={{ display: 'grid', gridTemplateColumns: scan.health_score != null ? '1fr 1fr' : '1fr', gap: 20, marginBottom: 24 }}>
+                {/* Verification score */}
                 <div className="results-section" style={{ textAlign: 'center', padding: '28px 20px' }}>
-                    <h3 style={{
-                        fontSize: '14px', fontWeight: 600,
-                        color: 'var(--color-neutral-400)',
-                        marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px'
-                    }}>Verification Score</h3>
+                    <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-neutral-400)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 1 }}>
+                        Claim Verification Score
+                    </h3>
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
-                        <ScoreCircle score={scan.score} size={140} />
+                        <ScoreCircle score={scan.score} size={130} />
                     </div>
-                    <p style={{
-                        fontSize: '12px', color: 'var(--color-neutral-500)',
-                        marginTop: '10px'
-                    }}>
-                        How well the claim matches extracted data
+                    <p style={{ fontSize: 12, color: 'var(--color-neutral-500)', marginTop: 10 }}>
+                        How well the claim matches extracted nutrition data
                     </p>
                 </div>
 
-                {/* Health Score */}
+                {/* Health score */}
                 {scan.health_score != null && (
-                    <div className="results-section" style={{ textAlign: 'center', padding: '28px 20px' }}>
-                        <h3 style={{
-                            fontSize: '14px', fontWeight: 600,
-                            color: 'var(--color-neutral-400)',
-                            marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px'
-                        }}>Health Score</h3>
-                        <div style={{ display: 'flex', justifyContent: 'center' }}>
-                            <ScoreCircle score={scan.health_score} size={140} color="var(--color-info)" label="Health" />
+                    <div className="results-section" style={{ padding: '28px 20px' }}>
+                        <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-neutral-400)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' }}>
+                            Overall Health Score
+                        </h3>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
+                            <ScoreCircle score={scan.health_score} size={130} color="var(--color-info)" label="Health" />
                         </div>
-                        <p style={{
-                            fontSize: '12px', color: 'var(--color-neutral-500)',
-                            marginTop: '10px'
-                        }}>
-                            Overall nutritional quality (0-100)
-                        </p>
+                        <HealthScoreBreakdown score={scan.health_score} />
                     </div>
                 )}
             </div>
 
-            {/* ═══════════════ CLAIM BREAKDOWN ═══════════════ */}
+            {/* ═══ CLAIM BREAKDOWN ═══ */}
             {scan.sub_claims && scan.sub_claims.length > 0 && (
-                <div className="results-section" style={{ marginBottom: '28px', padding: '28px' }}>
-                    <h3 style={{
-                        fontSize: '16px', fontWeight: 700,
-                        color: 'var(--color-neutral-100)',
-                        marginBottom: '20px',
-                        display: 'flex', alignItems: 'center', gap: '10px'
-                    }}>
+                <div className="results-section" style={{ marginBottom: 24, padding: 28 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-neutral-100)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Shield size={20} color="var(--color-primary-400)" />
-                        Claim Breakdown
+                        FSSAI Claim Verification Breakdown
                     </h3>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {scan.sub_claims.map((sc, idx) => {
                             const svs = subVerdictStyle[sc.verdict] || subVerdictStyle.UNVERIFIABLE;
                             const SubIcon = verdictMeta[sc.verdict]?.icon || HelpCircle;
                             return (
-                                <div key={idx} style={{
-                                    background: svs.bg,
-                                    borderLeft: `4px solid ${svs.border}`,
-                                    borderRadius: '10px',
-                                    padding: '16px 20px',
-                                    transition: 'transform .15s ease',
-                                }}>
-                                    <div style={{
-                                        display: 'flex', alignItems: 'flex-start',
-                                        gap: '12px'
-                                    }}>
-                                        <SubIcon size={22} color={svs.border} style={{ marginTop: 2, flexShrink: 0 }} />
+                                <div key={idx} style={{ background: svs.bg, borderLeft: `4px solid ${svs.border}`, borderRadius: 10, padding: '16px 20px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                        <SubIcon size={20} color={svs.border} style={{ marginTop: 2, flexShrink: 0 }} />
                                         <div style={{ flex: 1 }}>
-                                            <div style={{
-                                                display: 'flex', alignItems: 'center',
-                                                gap: '10px', flexWrap: 'wrap', marginBottom: '6px'
-                                            }}>
-                                                <span style={{
-                                                    fontSize: '15px', fontWeight: 700,
-                                                    color: 'var(--color-neutral-100)'
-                                                }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                                                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-neutral-100)' }}>
                                                     {sc.sub_claim || sc.claim_type?.replace(/_/g, ' ')}
                                                 </span>
                                                 <VerdictBadge verdict={sc.verdict} />
                                             </div>
-                                            <p style={{
-                                                fontSize: '13px', lineHeight: 1.6,
-                                                color: 'var(--color-neutral-300)', margin: 0
-                                            }}>
+                                            <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--color-neutral-300)', margin: 0 }}>
                                                 {sc.reason}
                                             </p>
-
-                                            {/* Show actual vs threshold if available */}
                                             {sc.actual_value && (
-                                                <div style={{
-                                                    marginTop: '10px',
-                                                    display: 'flex', gap: '16px', flexWrap: 'wrap'
-                                                }}>
-                                                    <span style={{
-                                                        fontSize: '12px', color: 'var(--color-neutral-400)',
-                                                        background: 'rgba(255,255,255,.04)',
-                                                        padding: '4px 10px', borderRadius: '6px'
-                                                    }}>
-                                                        <strong style={{ color: 'var(--color-neutral-200)' }}>Actual:</strong> {sc.actual_value}
+                                                <div style={{ marginTop: 10, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                                    <span style={{ fontSize: 12, color: 'var(--color-neutral-400)', background: 'rgba(255,255,255,.04)', padding: '4px 10px', borderRadius: 6 }}>
+                                                        <strong style={{ color: 'var(--color-neutral-200)' }}>Actual: </strong>{sc.actual_value}
                                                     </span>
                                                     {sc.threshold_value && (
-                                                        <span style={{
-                                                            fontSize: '12px', color: 'var(--color-neutral-400)',
-                                                            background: 'rgba(255,255,255,.04)',
-                                                            padding: '4px 10px', borderRadius: '6px'
-                                                        }}>
-                                                            <strong style={{ color: 'var(--color-neutral-200)' }}>Threshold:</strong> {sc.threshold_value}
+                                                        <span style={{ fontSize: 12, color: 'var(--color-neutral-400)', background: 'rgba(255,255,255,.04)', padding: '4px 10px', borderRadius: 6 }}>
+                                                            <strong style={{ color: 'var(--color-neutral-200)' }}>FSSAI Threshold: </strong>{sc.threshold_value}
                                                         </span>
                                                     )}
                                                 </div>
@@ -383,170 +456,160 @@ function Results() {
                 </div>
             )}
 
-            {/* ═══════════════ NUTRITION OVERVIEW ═══════════════ */}
+            {/* ═══ NUTRITION OVERVIEW ═══ */}
             {scan.nutrition && (
-                <div className="results-section" style={{ marginBottom: '28px', padding: '28px' }}>
-                    <h3 style={{
-                        fontSize: '16px', fontWeight: 700,
-                        color: 'var(--color-neutral-100)',
-                        marginBottom: '20px',
-                        display: 'flex', alignItems: 'center', gap: '10px'
-                    }}>
-                        📊 Nutrition Overview <span style={{
-                            fontSize: '12px', fontWeight: 400,
-                            color: 'var(--color-neutral-500)'
-                        }}>(per 100g)</span>
-                    </h3>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                        gap: '24px'
-                    }}>
+                <div className="results-section" style={{ marginBottom: 24, padding: '28px 32px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-neutral-100)', display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
+                            Nutrition Facts
+                        </h3>
+                        {n.serving_size && (
+                            <span style={{ fontSize: 12, color: 'var(--color-neutral-400)', background: 'rgba(255,255,255,.06)', padding: '4px 14px', borderRadius: 20 }}>
+                                Serving: {n.serving_size}
+                            </span>
+                        )}
+                        <span style={{ fontSize: 11, color: 'var(--color-neutral-500)', background: 'rgba(255,255,255,.04)', padding: '3px 10px', borderRadius: 12 }}>
+                            Values per 100g
+                        </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '0 40px' }}>
+                        {/* ── Left column: Energy & Macros ── */}
                         <div>
-                            <NutritionBar label="Protein" value={n.protein} unit="g" maxValue={30} icon="🥩" />
-                            <NutritionBar label="Sugar" value={n.sugar} unit="g" maxValue={40} icon="🍬" />
-                            <NutritionBar label="Fat" value={n.fat} unit="g" maxValue={30} icon="🧈" />
+                            <NutritionDivider label="Energy & Macronutrients" />
+                            <NutritionRow label="Calories" value={n.calories} unit="kcal" maxValue={550} icon="🔥" highlight />
+                            <NutritionRow label="Protein" value={n.protein} unit="g" maxValue={30} icon="🥩" highlight />
+                            <NutritionRow label="Total Carbohydrates" value={n.carbohydrates} unit="g" maxValue={80} icon="🍞" />
+                            <NutritionRow label="Sugar" value={n.sugar} unit="g" maxValue={40} icon="🍬" />
+                            <NutritionRow label="Dietary Fiber" value={n.fiber} unit="g" maxValue={15} icon="🌾" />
                         </div>
+
+                        {/* ── Right column: Fats & Other ── */}
                         <div>
-                            <NutritionBar label="Fiber" value={n.fiber} unit="g" maxValue={15} icon="🌾" />
-                            <NutritionBar label="Calories" value={n.calories} unit="kcal" maxValue={550} icon="🔥" />
-                            <NutritionBar label="Sodium" value={n.sodium} unit="mg" maxValue={800} icon="🧂" />
+                            <NutritionDivider label="Fats" />
+                            <NutritionRow label="Total Fat" value={n.fat} unit="g" maxValue={30} icon="🧈" highlight />
+                            <NutritionRow label="Saturated Fat" value={n.saturated_fat} unit="g" maxValue={15} icon="🫧" />
+                            <NutritionRow label="Trans Fat" value={n.trans_fat} unit="g" maxValue={2} icon="⚠️" />
+
+                            <NutritionDivider label="Other" />
+                            <NutritionRow label="Cholesterol" value={n.cholesterol} unit="mg" maxValue={300} icon="🫀" />
+                            <NutritionRow label="Sodium" value={n.sodium} unit="mg" maxValue={800} icon="🧂" />
+                        </div>
+                    </div>
+
+                    {/* FSSAI Reference Badges */}
+                    <div style={{ marginTop: 22, padding: '14px 18px', background: 'rgba(59,130,246,.05)', border: '1px solid rgba(59,130,246,.12)', borderRadius: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#60a5fa', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            📋 FSSAI Claim Thresholds
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {[
+                                { label: 'High Protein', rule: 'Protein ≥ 20% kcal' },
+                                { label: 'Sugar Free', rule: 'Sugar ≤ 0.5g' },
+                                { label: 'Low Fat', rule: 'Fat ≤ 3g' },
+                                { label: 'Trans Fat Free', rule: 'Trans Fat ≤ 0.2g' },
+                                { label: 'High Fiber', rule: 'Fiber ≥ 6g' },
+                                { label: 'Low Sodium', rule: 'Sodium ≤ 120mg' },
+                            ].map((t, i) => (
+                                <span key={i} style={{
+                                    fontSize: 10, padding: '4px 10px', borderRadius: 6,
+                                    background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
+                                    color: 'var(--color-neutral-400)', whiteSpace: 'nowrap',
+                                }}>
+                                    <strong style={{ color: 'var(--color-neutral-200)' }}>{t.label}:</strong> {t.rule}
+                                </span>
+                            ))}
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ═══════════════ INGREDIENT WARNINGS ═══════════════ */}
+            {/* ═══ INGREDIENT WARNINGS ═══ */}
             {scan.ingredient_warnings && scan.ingredient_warnings.length > 0 && (
-                <div className="results-section" style={{ marginBottom: '28px', padding: '28px' }}>
-                    <h3 style={{
-                        fontSize: '16px', fontWeight: 700,
-                        color: 'var(--color-misleading)',
-                        marginBottom: '16px',
-                        display: 'flex', alignItems: 'center', gap: '10px'
-                    }}>
+                <div className="results-section" style={{ marginBottom: 24, padding: '28px 32px' }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f97316', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
                         <AlertTriangle size={20} />
-                        Ingredient Warnings ({scan.ingredient_warnings.length})
+                        Ingredient Warnings
+                        <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-neutral-400)', background: 'rgba(249,115,22,.12)', padding: '2px 10px', borderRadius: 10 }}>
+                            {scan.ingredient_warnings.length}
+                        </span>
                     </h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 8 }}>
                         {scan.ingredient_warnings.map((w, idx) => (
                             <div key={idx} style={{
-                                padding: '12px 16px',
-                                background: 'rgba(249,115,22,.08)',
-                                borderLeft: '3px solid #f97316',
-                                borderRadius: '8px',
-                                fontSize: '13px', color: '#fbbf24', lineHeight: 1.5
+                                padding: '12px 16px', background: 'rgba(249,115,22,.05)',
+                                borderLeft: '3px solid #f97316', borderRadius: 8,
+                                fontSize: 13, color: 'var(--color-neutral-300)', lineHeight: 1.5,
+                                display: 'flex', alignItems: 'flex-start', gap: 10,
                             }}>
-                                {w}
+                                <span style={{ color: '#f97316', fontSize: 14, marginTop: 1, flexShrink: 0 }}>⚠</span>
+                                <span>{w}</span>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
 
-            {/* ═══════════════ WHAT THIS MEANS ═══════════════ */}
-            <div className="results-section" style={{
-                marginBottom: '28px', padding: '28px',
-                background: 'rgba(59,130,246,.06)',
-                border: '1px solid rgba(59,130,246,.15)',
-            }}>
-                <h3 style={{
-                    fontSize: '16px', fontWeight: 700,
-                    color: 'var(--color-info)',
-                    marginBottom: '14px',
-                    display: 'flex', alignItems: 'center', gap: '10px'
-                }}>
-                    <Info size={20} /> What This Means
+            {/* ═══ HEALTHIER ALTERNATIVES ═══ */}
+            <IngredientAlternatives warnings={scan.ingredient_warnings} />
+
+            {/* ═══ WHAT THIS MEANS ═══ */}
+            <div className="results-section" style={{ marginBottom: 24, padding: 28, background: 'rgba(59,130,246,.05)', border: '1px solid rgba(59,130,246,.15)' }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-info)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Info size={20} /> What This Means For You
                 </h3>
-                <p style={{
-                    fontSize: '14px', lineHeight: 1.8,
-                    color: 'var(--color-neutral-300)', margin: 0
-                }}>
-                    {scan.verdict === 'TRUE' &&
-                        'Great news! The claim on this product is backed by its nutrition facts and ingredients list. You can trust this claim based on the data we extracted from the label.'}
-                    {scan.verdict === 'PARTIALLY_TRUE' &&
-                        'This product partially meets the criteria for the claim. While some aspects check out, others don\'t fully align. Consider looking at the specific breakdown above to understand which parts of the claim hold true.'}
-                    {scan.verdict === 'MISLEADING' &&
-                        'The data suggests this claim is misleading. The product may use technically correct language but the overall impression it creates may not match reality. Review the claim breakdown above for specifics.'}
-                    {scan.verdict === 'FALSE' &&
-                        'The extracted data directly contradicts this claim. The product does NOT meet the required criteria. This could be an exaggerated or false marketing claim. Review the detailed breakdown above to see exactly why.'}
-                    {scan.verdict === 'UNVERIFIABLE' &&
-                        'We could not extract enough data from the label images to verify or deny this claim. This could be due to image quality, OCR limitations, or the claim requiring data not present on the label (like certifications). Try uploading clearer images.'}
+                <p style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--color-neutral-300)', margin: 0 }}>
+                    {scan.verdict === 'TRUE' && 'Great news! The claim on this product is backed by its nutrition facts and ingredients list. You can trust this claim based on the data extracted from the label.'}
+                    {scan.verdict === 'PARTIALLY_TRUE' && "This product partially meets the criteria. While some aspects check out, others don't fully align. Review the specific breakdown above to understand which parts of the claim hold true."}
+                    {scan.verdict === 'MISLEADING' && 'The data suggests this claim is misleading. The product may use technically correct language but the overall impression created may not match reality. Review the breakdown above.'}
+                    {scan.verdict === 'FALSE' && 'The extracted data directly contradicts this claim. The product does NOT meet the required FSSAI criteria. This could be an exaggerated or false marketing claim.'}
+                    {scan.verdict === 'UNVERIFIABLE' && 'We could not extract enough data from the label to verify this claim. This may be due to image quality or OCR limitations. Try uploading a clearer, closer photo of the label.'}
                 </p>
             </div>
 
-            {/* ═══════════════ DETAILED EXPLANATION ═══════════════ */}
+            {/* ═══ DETAILED EXPLANATION ═══ */}
             {scan.explanation && (
-                <div className="results-section" style={{ marginBottom: '28px', padding: '28px' }}>
-                    <h3 style={{
-                        fontSize: '16px', fontWeight: 700,
-                        color: 'var(--color-neutral-100)',
-                        marginBottom: '20px',
-                        display: 'flex', alignItems: 'center', gap: '10px'
-                    }}>
-                        📝 Detailed Explanation
+                <div className="results-section" style={{ marginBottom: 24, padding: 28 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-neutral-100)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        Detailed Analysis
                     </h3>
-                    <div style={{
-                        color: 'var(--color-neutral-300)',
-                        fontSize: '13px', lineHeight: 1.8
-                    }}>
+                    <div style={{ color: 'var(--color-neutral-300)', fontSize: 13, lineHeight: 1.8 }}>
                         {scan.explanation.split('\n').map((line, idx) => {
-                            const parsedLine = line.replace(
-                                /\*\*([^*]+)\*\*/g,
-                                '<strong style="color:var(--color-neutral-100);font-weight:600">$1</strong>'
-                            );
+                            const parsedLine = line.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:var(--color-neutral-100);font-weight:600">$1</strong>');
                             if (line.trim().startsWith('•') || line.trim().startsWith('-'))
-                                return <div key={idx} style={{ paddingLeft: '16px', marginBottom: '4px' }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
+                                return <div key={idx} style={{ paddingLeft: 16, marginBottom: 4 }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
                             if (line.match(/^[✅❌⚠️❓🟡]/))
-                                return <div key={idx} style={{ padding: '10px 14px', marginBottom: '8px', background: 'rgba(255,255,255,.03)', borderRadius: '8px', borderLeft: '3px solid var(--color-primary-500)' }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
-                            if (line.trim() === '') return <div key={idx} style={{ height: '12px' }} />;
-                            return <div key={idx} style={{ marginBottom: '6px' }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
+                                return <div key={idx} style={{ padding: '10px 14px', marginBottom: 8, background: 'rgba(255,255,255,.03)', borderRadius: 8, borderLeft: '3px solid var(--color-primary-500)' }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
+                            if (line.trim() === '') return <div key={idx} style={{ height: 12 }} />;
+                            return <div key={idx} style={{ marginBottom: 6 }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
                         })}
                     </div>
                 </div>
             )}
 
-            {/* ═══════════════ OCR DEBUG (collapsible) ═══════════════ */}
+            {/* ═══ OCR DEBUG (collapsible) ═══ */}
             {(scan.ocr_nutrition_text || scan.ocr_ingredients_text) && (
-                <div className="results-section" style={{ marginBottom: '28px', padding: 0, overflow: 'hidden' }}>
-                    <button
-                        onClick={() => setShowOcr(!showOcr)}
-                        style={{
-                            width: '100%', display: 'flex', alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '20px 28px',
-                            background: 'transparent', border: 'none',
-                            cursor: 'pointer', color: 'var(--color-neutral-400)',
-                            fontSize: '14px', fontWeight: 500
-                        }}
-                    >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            🔍 OCR Debug — Extracted Text
-                        </span>
-                        {showOcr ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                <div className="results-section" style={{ marginBottom: 24, padding: 0, overflow: 'hidden' }}>
+                    <button onClick={() => setShowOcr(!showOcr)} style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '18px 28px', background: 'transparent', border: 'none',
+                        cursor: 'pointer', color: 'var(--color-neutral-500)', fontSize: 13, fontWeight: 500
+                    }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>🔍 Raw OCR Text (for debugging)</span>
+                        {showOcr ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </button>
                     {showOcr && (
                         <div style={{ padding: '0 28px 24px' }}>
                             {scan.ocr_nutrition_text && (
-                                <div style={{ marginBottom: '16px' }}>
-                                    <h4 style={{ color: 'var(--color-primary-400)', marginBottom: '8px', fontSize: '13px' }}>📊 Nutrition Label Text:</h4>
-                                    <textarea readOnly value={scan.ocr_nutrition_text} style={{
-                                        width: '100%', minHeight: '120px', padding: '12px',
-                                        background: 'var(--color-neutral-900)', border: '1px solid var(--color-neutral-700)',
-                                        borderRadius: '8px', color: 'var(--color-neutral-200)',
-                                        fontSize: '12px', fontFamily: 'monospace', resize: 'vertical'
-                                    }} />
+                                <div style={{ marginBottom: 16 }}>
+                                    <h4 style={{ color: 'var(--color-primary-400)', marginBottom: 8, fontSize: 13 }}>📊 Nutrition Label Text:</h4>
+                                    <textarea readOnly value={scan.ocr_nutrition_text} style={{ width: '100%', minHeight: 120, padding: 12, background: 'var(--color-neutral-900)', border: '1px solid var(--color-neutral-700)', borderRadius: 8, color: 'var(--color-neutral-200)', fontSize: 12, fontFamily: 'monospace', resize: 'vertical' }} />
                                 </div>
                             )}
                             {scan.ocr_ingredients_text && (
                                 <div>
-                                    <h4 style={{ color: 'var(--color-secondary-400)', marginBottom: '8px', fontSize: '13px' }}>🧪 Ingredients Text:</h4>
-                                    <textarea readOnly value={scan.ocr_ingredients_text} style={{
-                                        width: '100%', minHeight: '120px', padding: '12px',
-                                        background: 'var(--color-neutral-900)', border: '1px solid var(--color-neutral-700)',
-                                        borderRadius: '8px', color: 'var(--color-neutral-200)',
-                                        fontSize: '12px', fontFamily: 'monospace', resize: 'vertical'
-                                    }} />
+                                    <h4 style={{ color: 'var(--color-secondary-400)', marginBottom: 8, fontSize: 13 }}>🧪 Ingredients Text:</h4>
+                                    <textarea readOnly value={scan.ocr_ingredients_text} style={{ width: '100%', minHeight: 120, padding: 12, background: 'var(--color-neutral-900)', border: '1px solid var(--color-neutral-700)', borderRadius: 8, color: 'var(--color-neutral-200)', fontSize: 12, fontFamily: 'monospace', resize: 'vertical' }} />
                                 </div>
                             )}
                         </div>
@@ -554,17 +617,10 @@ function Results() {
                 </div>
             )}
 
-            {/* ═══════════════ ACTIONS ═══════════════ */}
-            <div style={{
-                display: 'flex', justifyContent: 'center',
-                gap: '16px', marginTop: '12px', marginBottom: '32px', flexWrap: 'wrap'
-            }}>
-                <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>
-                    Scan Another Product
-                </button>
-                <button className="btn btn-secondary" onClick={() => navigate('/history')}>
-                    View History
-                </button>
+            {/* ═══ ACTIONS ═══ */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 12, marginBottom: 40, flexWrap: 'wrap' }}>
+                <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>Scan Another Product</button>
+                <button className="btn btn-secondary" onClick={() => navigate('/history')}>View History</button>
             </div>
         </div>
     );

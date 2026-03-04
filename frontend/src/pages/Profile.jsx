@@ -8,7 +8,7 @@ function Profile() {
 
     const handleLogout = async () => {
         await logout();
-        navigate('/login');
+        navigate('/');
     };
 
     const getInitials = (name) => {

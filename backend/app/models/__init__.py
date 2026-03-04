@@ -4,6 +4,7 @@ Database Models Package
 from app.models.user import User
 from app.models.scan import Scan, ScanImage, ExtractedNutrition, ExtractedIngredients, ClaimResult
 from app.models.rules import CategoryNutritionRule, ClaimRule, IngredientRiskMaster
+from app.models.password_reset import PasswordResetToken
 
 __all__ = [
     "User",
@@ -14,6 +15,7 @@ __all__ = [
     "ClaimResult",
     "CategoryNutritionRule",
     "ClaimRule",
-    "IngredientRiskMaster"
+    "IngredientRiskMaster",
+    "PasswordResetToken"
 ]
 

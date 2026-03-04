@@ -24,6 +24,9 @@ class NutritionInfo:
     calories_per_100g: Optional[float] = None
     sodium_per_100g: Optional[float] = None
     carbohydrates_per_100g: Optional[float] = None
+    saturated_fat_per_100g: Optional[float] = None
+    trans_fat_per_100g: Optional[float] = None
+    cholesterol_per_100g: Optional[float] = None
     raw_text: str = ""
     debug_matches: Dict = None
     
@@ -37,6 +40,7 @@ class IngredientsInfo:
     """Structured ingredients information"""
     ingredients_list: List[str] = None
     flagged_ingredients: List[Dict[str, str]] = None
+    allergens_detected: List[str] = None
     raw_text: str = ""
     
     def __post_init__(self):
@@ -44,6 +48,8 @@ class IngredientsInfo:
             self.ingredients_list = []
         if self.flagged_ingredients is None:
             self.flagged_ingredients = []
+        if self.allergens_detected is None:
+            self.allergens_detected = []
 
 
 class NutritionParser:
@@ -106,6 +112,21 @@ class NutritionParser:
             r'(\d+\.?\d*)\s*g?\s*carb',
             r'कार्बोहाइड्रेट[:\s]*(\d+\.?\d*)',
         ],
+        'saturated_fat': [
+            r'saturated\s*fat[:\s]*(\d+\.?\d*)\s*g',
+            r'sat(?:urated)?\s*fat[:\s]*(\d+\.?\d*)',
+            r'(\d+\.?\d*)\s*g?\s*sat\s*fat',
+        ],
+        'trans_fat': [
+            r'trans\s*fat[:\s]*(\d+\.?\d*)\s*g',
+            r'trans\s*fat[:\s]*(\d+\.?\d*)',
+            r'(\d+\.?\d*)\s*g?\s*trans\s*fat',
+        ],
+        'cholesterol': [
+            r'cholesterol[:\s]*(\d+\.?\d*)\s*mg',
+            r'cholesterol[:\s]*(\d+\.?\d*)',
+            r'(\d+\.?\d*)\s*mg?\s*cholesterol',
+        ],
         'serving_size': [
             r'serving\s*(?:size)?[:\s]*(\d+\.?\d*\s*(?:g|ml|gm))',
             r'per\s+(\d+\.?\d*\s*(?:g|ml|gm))',
@@ -151,6 +172,9 @@ class NutritionParser:
         calories = self._extract_numeric_with_debug('calories', text_lower, debug_matches)
         sodium = self._extract_numeric_with_debug('sodium', text_lower, debug_matches)
         carbs = self._extract_numeric_with_debug('carbohydrates', text_lower, debug_matches)
+        sat_fat = self._extract_numeric_with_debug('saturated_fat', text_lower, debug_matches)
+        trans_fat = self._extract_numeric_with_debug('trans_fat', text_lower, debug_matches)
+        cholesterol = self._extract_numeric_with_debug('cholesterol', text_lower, debug_matches)
         
         # Convert to per 100g if needed
         if not is_per_100g and serving_g != 100:
@@ -162,6 +186,9 @@ class NutritionParser:
             calories = calories * factor if calories else None
             carbs = carbs * factor if carbs else None
             sodium = sodium * factor if sodium else None
+            sat_fat = sat_fat * factor if sat_fat else None
+            trans_fat = trans_fat * factor if trans_fat else None
+            cholesterol = cholesterol * factor if cholesterol else None
             debug_matches['conversion_factor'] = factor
         
         result = NutritionInfo(
@@ -173,6 +200,9 @@ class NutritionParser:
             calories_per_100g=round(calories, 1) if calories else None,
             sodium_per_100g=round(sodium, 1) if sodium else None,
             carbohydrates_per_100g=round(carbs, 1) if carbs else None,
+            saturated_fat_per_100g=round(sat_fat, 1) if sat_fat else None,
+            trans_fat_per_100g=round(trans_fat, 1) if trans_fat else None,
+            cholesterol_per_100g=round(cholesterol, 1) if cholesterol else None,
             raw_text=text,
             debug_matches=debug_matches
         )
@@ -244,6 +274,7 @@ class IngredientsParser:
     """
     Parses ingredients list from OCR text.
     Identifies and flags concerning ingredients.
+    Detects common allergens.
     Loads flagged ingredients from DB (IngredientRiskMaster) if available,
     otherwise uses hardcoded defaults.
     """
@@ -271,6 +302,20 @@ class IngredientsParser:
         'msg': {'category': 'flavor_enhancer', 'concern': 'Flavor enhancer (MSG)'},
     }
     
+    # Common allergen keywords for detection
+    ALLERGEN_KEYWORDS = [
+        'milk', 'eggs', 'egg', 'fish', 'shellfish', 'tree nuts', 'peanuts',
+        'peanut', 'wheat', 'soybeans', 'soy', 'gluten', 'sesame', 'mustard',
+        'celery', 'lupin'
+    ]
+    
+    # Normalize allergen names for cleaner output
+    _ALLERGEN_NORMALIZE = {
+        'egg': 'eggs',
+        'soybeans': 'soy',
+        'peanut': 'peanuts',
+    }
+    
     def __init__(self, db=None):
         self.FLAGGED_INGREDIENTS = self._load_flagged(db)
     
@@ -296,18 +341,21 @@ class IngredientsParser:
             return dict(self._DEFAULT_FLAGGED)
     
     def parse(self, text: str) -> IngredientsInfo:
-        """Parse ingredients text into structured data"""
+        """Parse ingredients text into structured data with allergen detection"""
         logger.debug(f"Parsing ingredients from text ({len(text)} chars): {text[:300]}...")
         
         cleaned = self._clean_text(text)
         ingredients_list = self._extract_ingredients_list(cleaned)
         flagged = self._flag_ingredients(ingredients_list, cleaned)
+        allergens = self._detect_allergens(cleaned)
         
-        logger.info(f"Parsed {len(ingredients_list)} ingredients, {len(flagged)} flagged")
+        logger.info(f"Parsed {len(ingredients_list)} ingredients, {len(flagged)} flagged, "
+                   f"{len(allergens)} allergens detected")
         
         return IngredientsInfo(
             ingredients_list=ingredients_list,
             flagged_ingredients=flagged,
+            allergens_detected=allergens,
             raw_text=text
         )
     
@@ -406,4 +454,24 @@ class IngredientsParser:
     def count_concerning_ingredients(self, ingredients_info: IngredientsInfo) -> int:
         """Count total concerning ingredients"""
         return len(ingredients_info.flagged_ingredients)
-
+    
+    def _detect_allergens(self, text: str) -> List[str]:
+        """
+        Detect common allergens in ingredients text.
+        
+        Checks for: milk, eggs, fish, shellfish, tree nuts, peanuts,
+        wheat, soy, gluten, sesame, mustard, celery, lupin.
+        
+        Returns:
+            List of normalized allergen names found
+        """
+        detected = set()
+        text_lower = text.lower()
+        
+        for allergen in self.ALLERGEN_KEYWORDS:
+            if allergen in text_lower:
+                # Normalize to canonical name
+                normalized = self._ALLERGEN_NORMALIZE.get(allergen, allergen)
+                detected.add(normalized)
+        
+        return sorted(detected)

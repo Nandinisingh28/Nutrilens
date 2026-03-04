@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Leaf } from 'lucide-react';
 
 function Signup() {
     const [name, setName] = useState('');
@@ -57,7 +56,7 @@ function Signup() {
                         justifyContent: 'center',
                         margin: '0 auto'
                     }}>
-                        <Leaf size={32} color="white" />
+                        <img src="/logo.png" alt="NutriLens Logo" style={{ height: '32px', width: 'auto', filter: 'brightness(0) invert(1)' }} />
                     </div>
                 </div>
 

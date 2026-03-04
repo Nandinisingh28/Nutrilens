@@ -18,6 +18,7 @@ pytesseract==0.3.10
 opencv-python-headless==4.9.0.80
 Pillow==10.2.0
 numpy==1.26.3
+google-cloud-vision==3.7.2
 
 # Machine Learning
 scikit-learn==1.4.0

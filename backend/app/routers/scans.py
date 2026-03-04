@@ -77,7 +77,7 @@ async def precision_scan(
     nutrition_image: UploadFile = File(..., description="Image of nutrition facts label"),
     ingredients_image: UploadFile = File(..., description="Image of ingredients list"),
     claim: str = Form(..., description="Claim to verify (e.g., 'High Protein and Low Sugar')"),
-    category: str = Form(..., description="Product category: PROTEIN_BAR or BREAKFAST_CEREAL"),
+    category: str = Form(..., description="Product category (e.g., PROTEIN_BAR, BREAKFAST_CEREAL, BISCUITS_COOKIES, SNACKS, etc.)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -90,7 +90,7 @@ async def precision_scan(
     - **nutrition_image**: Clear photo of the nutrition facts table
     - **ingredients_image**: Clear photo of the ingredients list
     - **claim**: The marketing claim to verify
-    - **category**: PROTEIN_BAR or BREAKFAST_CEREAL
+    - **category**: Product category (see ProductCategory enum for valid values)
     """
     
     # Validate category
@@ -172,6 +172,10 @@ async def precision_scan(
             fiber_per_100g=nutrition_info.fiber_per_100g,
             calories_per_100g=nutrition_info.calories_per_100g,
             sodium_per_100g=nutrition_info.sodium_per_100g,
+            carbohydrates_per_100g=getattr(nutrition_info, 'carbohydrates_per_100g', None),
+            saturated_fat_per_100g=getattr(nutrition_info, 'saturated_fat_per_100g', None),
+            trans_fat_per_100g=getattr(nutrition_info, 'trans_fat_per_100g', None),
+            cholesterol_per_100g=getattr(nutrition_info, 'cholesterol_per_100g', None),
             raw_text=nutrition_info.raw_text
         ))
         
@@ -211,7 +215,11 @@ async def precision_scan(
                 fat=nutrition_info.fat_per_100g,
                 fiber=nutrition_info.fiber_per_100g,
                 calories=nutrition_info.calories_per_100g,
-                sodium=nutrition_info.sodium_per_100g
+                sodium=nutrition_info.sodium_per_100g,
+                carbohydrates=getattr(nutrition_info, 'carbohydrates_per_100g', None),
+                saturated_fat=getattr(nutrition_info, 'saturated_fat_per_100g', None),
+                trans_fat=getattr(nutrition_info, 'trans_fat_per_100g', None),
+                cholesterol=getattr(nutrition_info, 'cholesterol_per_100g', None)
             ),
             ingredient_warnings=verification_result.ingredient_warnings,
             sub_claims=[
@@ -238,7 +246,7 @@ async def precision_scan(
 async def quick_scan(
     image: UploadFile = File(..., description="Image containing both nutrition facts and ingredients"),
     claim: str = Form(..., description="Claim to verify"),
-    category: str = Form(..., description="Product category: PROTEIN_BAR or BREAKFAST_CEREAL"),
+    category: str = Form(..., description="Product category (e.g., PROTEIN_BAR, BREAKFAST_CEREAL, BISCUITS_COOKIES, SNACKS, etc.)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -251,7 +259,7 @@ async def quick_scan(
     
     - **image**: Photo containing both nutrition facts and ingredients
     - **claim**: The marketing claim to verify
-    - **category**: PROTEIN_BAR or BREAKFAST_CEREAL
+    - **category**: Product category (see ProductCategory enum for valid values)
     """
     
     # Validate category
@@ -346,6 +354,10 @@ async def quick_scan(
             fiber_per_100g=nutrition_info.fiber_per_100g,
             calories_per_100g=nutrition_info.calories_per_100g,
             sodium_per_100g=nutrition_info.sodium_per_100g,
+            carbohydrates_per_100g=getattr(nutrition_info, 'carbohydrates_per_100g', None),
+            saturated_fat_per_100g=getattr(nutrition_info, 'saturated_fat_per_100g', None),
+            trans_fat_per_100g=getattr(nutrition_info, 'trans_fat_per_100g', None),
+            cholesterol_per_100g=getattr(nutrition_info, 'cholesterol_per_100g', None),
             raw_text=nutrition_info.raw_text
         ))
         
@@ -385,7 +397,11 @@ async def quick_scan(
                 fat=nutrition_info.fat_per_100g,
                 fiber=nutrition_info.fiber_per_100g,
                 calories=nutrition_info.calories_per_100g,
-                sodium=nutrition_info.sodium_per_100g
+                sodium=nutrition_info.sodium_per_100g,
+                carbohydrates=getattr(nutrition_info, 'carbohydrates_per_100g', None),
+                saturated_fat=getattr(nutrition_info, 'saturated_fat_per_100g', None),
+                trans_fat=getattr(nutrition_info, 'trans_fat_per_100g', None),
+                cholesterol=getattr(nutrition_info, 'cholesterol_per_100g', None)
             ),
             ingredient_warnings=verification_result.ingredient_warnings,
             sub_claims=[
@@ -477,7 +493,11 @@ async def get_scan_details(
             fat=nutrition.fat_per_100g,
             fiber=nutrition.fiber_per_100g,
             calories=nutrition.calories_per_100g,
-            sodium=nutrition.sodium_per_100g
+            sodium=nutrition.sodium_per_100g,
+            carbohydrates=nutrition.carbohydrates_per_100g,
+            saturated_fat=nutrition.saturated_fat_per_100g,
+            trans_fat=nutrition.trans_fat_per_100g,
+            cholesterol=nutrition.cholesterol_per_100g
         )
     
     # Build ingredient warnings

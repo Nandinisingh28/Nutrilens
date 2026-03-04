@@ -4,27 +4,27 @@ function VerdictBadge({ verdict, size = 'default' }) {
     const getVerdictConfig = (v) => {
         const configs = {
             TRUE: {
-                label: '✅ VERIFIED TRUE',
+                label: 'VERIFIED TRUE',
                 className: 'true',
                 Icon: CheckCircle,
             },
             PARTIALLY_TRUE: {
-                label: '⚠️ PARTIALLY TRUE',
+                label: 'PARTIALLY TRUE',
                 className: 'partially-true',
                 Icon: AlertCircle,
             },
             MISLEADING: {
-                label: '⚠️ MISLEADING',
+                label: 'MISLEADING',
                 className: 'misleading',
                 Icon: AlertTriangle,
             },
             FALSE: {
-                label: '❌ FALSE CLAIM',
+                label: 'FALSE CLAIM',
                 className: 'false',
                 Icon: XCircle,
             },
             UNVERIFIABLE: {
-                label: '❓ CANNOT VERIFY',
+                label: 'CANNOT VERIFY',
                 className: 'unverifiable',
                 Icon: HelpCircle,
             },

@@ -1,11 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Leaf, Shield, Zap, Target, CheckCircle, ArrowRight, Sparkles, Sun, Moon } from 'lucide-react';
+import { Target, CheckCircle, ArrowRight, Zap, Shield, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import Hero from '../components/Hero';
 
 function Landing() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { isAuthenticated } = useAuth();
     const { theme, toggleTheme } = useTheme();
 
@@ -16,117 +19,26 @@ function Landing() {
         }
     }, [isAuthenticated, navigate]);
 
+    // Handle jump to hash on mount
+    useEffect(() => {
+        if (location.hash) {
+            const id = location.hash.replace('#', '');
+            const element = document.getElementById(id);
+            if (element) {
+                setTimeout(() => {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+            }
+        }
+    }, [location.hash]);
+
     return (
         <div className="animate-fadeIn">
-            {/* Navigation */}
-            <nav className="navbar" style={{ background: 'transparent', borderBottom: 'none' }}>
-                <div className="container navbar-content">
-                    <div className="navbar-logo">
-                        <div className="navbar-logo-icon">
-                            <Leaf size={20} />
-                        </div>
-                        NutriLens
-                    </div>
-                    <div className="navbar-nav">
-                        {/* Theme Toggle */}
-                        <button
-                            onClick={toggleTheme}
-                            className="btn btn-ghost"
-                            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                            style={{ padding: 'var(--spacing-2)' }}
-                        >
-                            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                        </button>
-                        <button
-                            className="btn btn-ghost"
-                            onClick={() => navigate('/login')}
-                        >
-                            Sign In
-                        </button>
-                        <button
-                            className="btn btn-primary"
-                            onClick={() => navigate('/signup')}
-                        >
-                            Get Started
-                        </button>
-                    </div>
-                </div>
-            </nav>
-
             {/* Hero Section */}
-            <section className="hero" style={{ marginTop: '-80px', paddingTop: 'calc(var(--spacing-20) + 80px)' }}>
-                <div className="container">
-                    <div className="hero-content">
-                        <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 'var(--spacing-2)',
-                            padding: 'var(--spacing-2) var(--spacing-4)',
-                            background: 'rgba(34, 197, 94, 0.1)',
-                            border: '1px solid rgba(34, 197, 94, 0.3)',
-                            borderRadius: 'var(--radius-full)',
-                            marginBottom: 'var(--spacing-6)',
-                            fontSize: 'var(--font-size-sm)',
-                            color: 'var(--color-primary-400)'
-                        }}>
-                            <Sparkles size={16} />
-                            Powered by AI & FSSAI Guidelines
-                        </div>
-
-                        <h1 className="hero-title">
-                            Verify Food Claims <br />
-                            <span style={{ color: 'var(--color-primary-400)' }}>Before You Buy</span>
-                        </h1>
-
-                        <p className="hero-subtitle">
-                            Don't fall for misleading marketing! NutriLens uses AI-powered OCR to verify
-                            claims like "High Protein", "Low Sugar", and "Healthy" against actual nutrition facts.
-                        </p>
-
-                        <div className="hero-actions">
-                            <button
-                                className="btn btn-primary btn-lg"
-                                onClick={() => navigate('/signup')}
-                            >
-                                Start Free
-                                <ArrowRight size={20} />
-                            </button>
-                            <button
-                                className="btn btn-secondary btn-lg"
-                                onClick={() => navigate('/login')}
-                            >
-                                Sign In
-                            </button>
-                        </div>
-
-                        {/* Trust badges */}
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            gap: 'var(--spacing-8)',
-                            marginTop: 'var(--spacing-12)',
-                            color: 'var(--color-neutral-400)',
-                            fontSize: 'var(--font-size-sm)'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)' }}>
-                                <CheckCircle size={16} color="var(--color-primary-400)" />
-                                Free to Use
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)' }}>
-                                <CheckCircle size={16} color="var(--color-primary-400)" />
-                                FSSAI Standards
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)' }}>
-                                <CheckCircle size={16} color="var(--color-primary-400)" />
-                                Instant Results
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <Hero />
 
             {/* How It Works */}
-            <section className="container" style={{ padding: 'var(--spacing-20) 0' }}>
+            <section id="features" className="container" style={{ padding: 'var(--spacing-20) 0' }}>
                 <h2 style={{ textAlign: 'center', marginBottom: 'var(--spacing-4)' }}>
                     How It Works
                 </h2>
@@ -210,7 +122,7 @@ function Landing() {
                         color: 'var(--color-neutral-400)',
                         marginBottom: 'var(--spacing-8)'
                     }}>
-                        15 claim types verified against FSSAI &amp; WHO guidelines
+                        25+ claim types verified against strict FSSAI guidelines
                     </p>
 
                     <div style={{
@@ -223,20 +135,30 @@ function Landing() {
                     }}>
                         {[
                             { label: 'High Protein', icon: '💪' },
+                            { label: 'Source of Protein', icon: '🥩' },
                             { label: 'Low Sugar', icon: '🍬' },
-                            { label: 'No Sugar / Sugar Free', icon: '🚫' },
+                            { label: 'Sugar Free', icon: '🚫' },
+                            { label: 'No Added Sugar', icon: '⛔' },
                             { label: 'High Fiber', icon: '🌾' },
+                            { label: 'Source of Fiber', icon: '🥦' },
                             { label: 'Low Fat', icon: '🥑' },
-                            { label: 'No Trans Fat', icon: '❌' },
-                            { label: 'Low Calorie', icon: '🔥' },
-                            { label: 'Low Sodium', icon: '🧂' },
-                            { label: 'High Calcium', icon: '🦴' },
+                            { label: 'Fat Free', icon: '🫙' },
+                            { label: 'Low Saturated Fat', icon: '🧈' },
+                            { label: 'Trans Fat Free', icon: '❌' },
+                            { label: 'Low Energy', icon: '🔋' },
+                            { label: 'Cholesterol Free', icon: '🫀' },
+                            { label: 'Low Cholesterol', icon: '💊' },
+                            { label: 'Gluten Free', icon: '🌾' },
+                            { label: 'Vegan', icon: '🌱' },
                             { label: 'No Preservatives', icon: '🧪' },
                             { label: 'No Artificial Colors', icon: '🎨' },
                             { label: 'No Artificial Flavors', icon: '👅' },
-                            { label: 'Natural', icon: '🌿' },
-                            { label: 'Organic', icon: '🌱' },
+                            { label: 'No Palm Oil', icon: '🌴' },
+                            { label: 'Lactose Free', icon: '🥛' },
+                            { label: 'Eggless', icon: '🥚' },
                             { label: 'Whole Grain', icon: '🌾' },
+                            { label: 'No Added MSG', icon: '🫗' },
+                            { label: 'Clean Ingredients', icon: '✨' },
                         ].map((claim) => (
                             <span
                                 key={claim.label}
@@ -266,10 +188,11 @@ function Landing() {
                         fontSize: 'var(--font-size-xs)',
                         marginTop: 'var(--spacing-6)'
                     }}>
-                        Compound claims like "High Protein and Low Sugar" are also supported
+                        Compound claims like "High Protein and No Added Sugar" are also supported
                     </p>
                 </div>
             </section>
+
 
             {/* Supported Categories */}
             <section className="container" style={{ padding: 'var(--spacing-16) 0' }}>
@@ -357,39 +280,7 @@ function Landing() {
             </section>
 
             {/* Footer */}
-            <footer style={{
-                borderTop: '1px solid var(--color-neutral-800)',
-                padding: 'var(--spacing-8) 0',
-                textAlign: 'center'
-            }}>
-                <div className="container">
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 'var(--spacing-2)',
-                        marginBottom: 'var(--spacing-4)'
-                    }}>
-                        <div className="navbar-logo-icon" style={{ width: '28px', height: '28px' }}>
-                            <Leaf size={14} />
-                        </div>
-                        <span style={{ fontWeight: '600' }}>NutriLens</span>
-                    </div>
-                    <p style={{
-                        color: 'var(--color-neutral-500)',
-                        fontSize: 'var(--font-size-sm)',
-                        marginBottom: 'var(--spacing-2)'
-                    }}>
-                        Helping you make informed food choices
-                    </p>
-                    <p style={{
-                        color: 'var(--color-neutral-600)',
-                        fontSize: 'var(--font-size-xs)'
-                    }}>
-                        © 2024 NutriLens. Based on FSSAI Guidelines for Indian Food Products.
-                    </p>
-                </div>
-            </footer>
+            {/* Footer is already rendered via PublicLayout in App.jsx */}
         </div>
     );
 }

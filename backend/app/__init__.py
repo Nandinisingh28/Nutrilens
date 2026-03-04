@@ -1,0 +1,3 @@
+"""
+NutriLens Backend Application
+"""
