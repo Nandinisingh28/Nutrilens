@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Target, ArrowLeft } from 'lucide-react';
 import ImageUpload from '../components/ImageUpload';
+import { CATEGORIES, CLAIM_ICONS } from '../utils/icons';
 import { scansAPI } from '../api/client';
 
 function PrecisionScan() {
@@ -102,26 +103,13 @@ function PrecisionScan() {
                             maxHeight: '240px',
                             overflowY: 'auto',
                         }}>
-                            {[
-                                { key: 'PROTEIN_BAR', emoji: '🥜', label: 'Protein Bar' },
-                                { key: 'BREAKFAST_CEREAL', emoji: '🥣', label: 'Cereal' },
-                                { key: 'BISCUITS_COOKIES', emoji: '🍪', label: 'Biscuits' },
-                                { key: 'SNACKS', emoji: '🍿', label: 'Snacks' },
-                                { key: 'CHOCOLATES_CONFECTIONERY', emoji: '🍫', label: 'Chocolate' },
-                                { key: 'BEVERAGES', emoji: '🥤', label: 'Beverages' },
-                                { key: 'ENERGY_DRINKS', emoji: '⚡', label: 'Energy Drinks' },
-                                { key: 'DAIRY_PRODUCTS', emoji: '🥛', label: 'Dairy' },
-                                { key: 'INSTANT_NOODLES_RTE', emoji: '🍜', label: 'Noodles/RTE' },
-                                { key: 'SAUCES_SPREADS', emoji: '🫙', label: 'Sauces' },
-                                { key: 'HEALTH_SUPPLEMENTS', emoji: '💊', label: 'Supplements' },
-                                { key: 'FROZEN_FOODS', emoji: '🧊', label: 'Frozen' },
-                            ].map(({ key, emoji, label }) => (
+                            {CATEGORIES.map(({ key, Icon, label }) => (
                                 <div
                                     key={key}
                                     className={`category-option ${category === key ? 'active' : ''}`}
                                     onClick={() => setCategory(key)}
                                 >
-                                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '4px' }}>{emoji}</span>
+                                    <span style={{ display: 'block', marginBottom: '4px' }}><Icon size={24} /></span>
                                     <span className="category-option-label">{label}</span>
                                 </div>
                             ))}
@@ -131,21 +119,26 @@ function PrecisionScan() {
                     {/* Claim Input */}
                     <div className="form-group">
                         <label className="form-label" htmlFor="claim">Claim to Verify</label>
-                        <input
+                        <select
                             id="claim"
-                            type="text"
                             className="form-input"
-                            placeholder="e.g., High Protein and Low Sugar"
                             value={claim}
                             onChange={(e) => setClaim(e.target.value)}
                             required
-                        />
+                        >
+                            <option value="">Select a claim to verify</option>
+                            {Object.keys(CLAIM_ICONS).sort().map((claimName) => (
+                                <option key={claimName} value={claimName}>
+                                    {claimName}
+                                </option>
+                            ))}
+                        </select>
                         <p style={{
                             fontSize: 'var(--font-size-xs)',
                             color: 'var(--color-neutral-500)',
                             marginTop: 'var(--spacing-2)'
                         }}>
-                            Enter the marketing claim from the package you want to verify
+                            Select the marketing claim from the package you want to verify
                         </p>
                     </div>
 

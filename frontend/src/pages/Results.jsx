@@ -2,31 +2,19 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, AlertTriangle, CheckCircle, XCircle, HelpCircle,
-    AlertCircle, Shield, Info, ChevronDown, ChevronUp, Lightbulb, Star
+    AlertCircle, Shield, Info, ChevronDown, ChevronUp, Lightbulb, Star,
+    Search, BarChart3, FlaskConical, ClipboardList
 } from 'lucide-react';
 import VerdictBadge from '../components/VerdictBadge';
 import ScoreCircle from '../components/ScoreCircle';
 import { scansAPI } from '../api/client';
+import {
+    getCategoryLabel, getCategoryIcon, NUTRITION_ICONS,
+    getHealthRating, HEALTH_FACTORS, ProhibitedIcon, SwitchToIcon
+} from '../utils/icons';
 
 /* ──────────────────── helpers ──────────────────── */
 
-const getCategoryLabel = (category) => {
-    const labels = {
-        PROTEIN_BAR: '🥜 Protein Bar',
-        BREAKFAST_CEREAL: '🥣 Breakfast Cereal',
-        BISCUITS_COOKIES: '🍪 Biscuits & Cookies',
-        SNACKS: '🍿 Snacks',
-        CHOCOLATES_CONFECTIONERY: '🍫 Chocolate & Confectionery',
-        BEVERAGES: '🥤 Beverages',
-        ENERGY_DRINKS: '⚡ Energy Drinks',
-        DAIRY_PRODUCTS: '🥛 Dairy Products',
-        INSTANT_NOODLES_RTE: '🍜 Instant Noodles / RTE',
-        SAUCES_SPREADS: '🫙 Sauces & Spreads',
-        HEALTH_SUPPLEMENTS: '💊 Health Supplements',
-        FROZEN_FOODS: '🧊 Frozen Foods',
-    };
-    return labels[category] || category;
-};
 
 /* Ingredient alternative suggestions */
 const INGREDIENT_ALTERNATIVES = {
@@ -143,7 +131,9 @@ function NutritionRow({ label, value, unit, maxValue, icon, highlight }) {
             borderBottom: '1px solid rgba(255,255,255,.04)',
         }}>
             <span style={{ fontSize: 13, color: highlight ? 'var(--color-neutral-100)' : 'var(--color-neutral-300)', display: 'flex', alignItems: 'center', gap: 8, fontWeight: highlight ? 600 : 400 }}>
-                <span style={{ fontSize: 15, width: 22, textAlign: 'center' }}>{icon}</span>
+                <span style={{ width: 22, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {typeof icon === 'function' || typeof icon === 'object' ? (() => { const I = icon; return <I size={15} />; })() : <span style={{ fontSize: 15 }}>{icon}</span>}
+                </span>
                 {label}
             </span>
             <span style={{
@@ -172,39 +162,26 @@ function NutritionDivider({ label }) {
 }
 
 /* ──────────── Health Score Breakdown ──────────────── */
-function HealthScoreBreakdown({ score }) {
+function HealthScoreBreakdown({ score, verdict }) {
     const [open, setOpen] = useState(false);
 
-    const rating = score >= 80 ? { label: 'Excellent', color: '#22c55e', emoji: '🌟' }
-        : score >= 65 ? { label: 'Good', color: '#86efac', emoji: '✅' }
-            : score >= 50 ? { label: 'Average', color: '#eab308', emoji: '⚠️' }
-                : score >= 35 ? { label: 'Poor', color: '#f97316', emoji: '🔴' }
-                    : { label: 'Unhealthy', color: '#ef4444', emoji: '❌' };
-
-    const factors = [
-        { icon: '🥩', label: 'Protein content', effect: 'Adds up to +15 pts for high protein foods' },
-        { icon: '🍬', label: 'Sugar content', effect: 'Penalty of up to -15 pts for excess sugar' },
-        { icon: '🌾', label: 'Dietary fiber', effect: 'Up to +12 pts for high fiber' },
-        { icon: '🧈', label: 'Total fat', effect: 'Penalty up to -10 pts for very high fat' },
-        { icon: '🧂', label: 'Sodium', effect: 'Penalty up to -10 pts for excess sodium' },
-        { icon: '🔥', label: 'Calories', effect: 'Penalty of -5 pts if >450 kcal / 100g' },
-        { icon: '⚗️', label: 'Artificial sweeteners', effect: '-8 pts if detected in ingredients' },
-        { icon: '🧪', label: 'Preservatives', effect: '-5 pts per preservative found' },
-        { icon: '⚠️', label: 'Trans fats', effect: '-15 pts if trans fat source detected' },
-    ];
+    const isUnverifiable = verdict === 'UNVERIFIABLE';
+    const rating = isUnverifiable
+        ? { label: 'Insufficient Data', color: '#6b7280', Icon: HelpCircle }
+        : getHealthRating(score);
+    const RatingIcon = rating.Icon;
 
     return (
         <div style={{ marginTop: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                    <span style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>Nutritional Quality Rating: </span>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: rating.color }}>{rating.emoji} {rating.label}</span>
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13, color: 'var(--color-neutral-400)', whiteSpace: 'nowrap' }}>Nutritional Quality Rating:</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: rating.color, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><RatingIcon size={16} /> {rating.label}</span>
                 <button onClick={() => setOpen(!open)} style={{
                     background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.10)',
                     borderRadius: 8, padding: '6px 14px', cursor: 'pointer',
                     color: 'var(--color-neutral-300)', fontSize: 12,
-                    display: 'flex', alignItems: 'center', gap: 6
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    marginLeft: 8, whiteSpace: 'nowrap'
                 }}>
                     {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     How is this calculated?
@@ -217,15 +194,18 @@ function HealthScoreBreakdown({ score }) {
                         The Health Score starts at <strong style={{ color: 'var(--color-neutral-200)' }}>50 (neutral)</strong> and adjusts up or down based on the following factors:
                     </p>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 8 }}>
-                        {factors.map((f, i) => (
-                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 12px', background: 'rgba(255,255,255,.03)', borderRadius: 8 }}>
-                                <span style={{ fontSize: 16 }}>{f.icon}</span>
-                                <div>
-                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-neutral-200)' }}>{f.label}</div>
-                                    <div style={{ fontSize: 11, color: 'var(--color-neutral-500)', marginTop: 2 }}>{f.effect}</div>
+                        {HEALTH_FACTORS.map((f, i) => {
+                            const FIcon = f.Icon;
+                            return (
+                                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 12px', background: 'rgba(255,255,255,.03)', borderRadius: 8 }}>
+                                    <span style={{ marginTop: 2 }}><FIcon size={16} /></span>
+                                    <div>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-neutral-200)' }}>{f.label}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--color-neutral-500)', marginTop: 2 }}>{f.effect}</div>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                     <p style={{ fontSize: 11, color: 'var(--color-neutral-600)', marginTop: 12 }}>
                         * Score is further adjusted based on the product category. E.g., chocolates are benchmarked differently than protein bars.
@@ -275,7 +255,7 @@ function IngredientAlternatives({ warnings }) {
                         {/* Flagged ingredient */}
                         <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(251,191,36,.10)', background: 'rgba(251,191,36,.04)' }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: '#fbbf24', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ fontSize: 15 }}>🚫</span> {alt.name}
+                                <span style={{ display: 'inline-flex', alignItems: 'center' }}><ProhibitedIcon size={15} /></span> {alt.name}
                             </div>
                             <div style={{ fontSize: 11.5, color: 'var(--color-neutral-400)', lineHeight: 1.5 }}>
                                 {alt.why}
@@ -284,7 +264,7 @@ function IngredientAlternatives({ warnings }) {
                         {/* Better alternative */}
                         <div style={{ padding: '12px 18px', background: 'rgba(34,197,94,.03)' }}>
                             <div style={{ fontSize: 9, fontWeight: 700, color: '#4ade80', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 4 }}>
-                                ✅ Switch to
+                                <SwitchToIcon size={12} style={{ display: 'inline', marginRight: 2 }} /> Switch to
                             </div>
                             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-neutral-100)' }}>
                                 {alt.alt}
@@ -405,7 +385,7 @@ function Results() {
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
                             <ScoreCircle score={scan.health_score} size={130} color="var(--color-info)" label="Health" />
                         </div>
-                        <HealthScoreBreakdown score={scan.health_score} />
+                        <HealthScoreBreakdown score={scan.health_score} verdict={scan.verdict} />
                     </div>
                 )}
             </div>
@@ -477,30 +457,30 @@ function Results() {
                         {/* ── Left column: Energy & Macros ── */}
                         <div>
                             <NutritionDivider label="Energy & Macronutrients" />
-                            <NutritionRow label="Calories" value={n.calories} unit="kcal" maxValue={550} icon="🔥" highlight />
-                            <NutritionRow label="Protein" value={n.protein} unit="g" maxValue={30} icon="🥩" highlight />
-                            <NutritionRow label="Total Carbohydrates" value={n.carbohydrates} unit="g" maxValue={80} icon="🍞" />
-                            <NutritionRow label="Sugar" value={n.sugar} unit="g" maxValue={40} icon="🍬" />
-                            <NutritionRow label="Dietary Fiber" value={n.fiber} unit="g" maxValue={15} icon="🌾" />
+                            <NutritionRow label="Calories" value={n.calories} unit="kcal" maxValue={550} icon={NUTRITION_ICONS.calories} highlight />
+                            <NutritionRow label="Protein" value={n.protein} unit="g" maxValue={30} icon={NUTRITION_ICONS.protein} highlight />
+                            <NutritionRow label="Total Carbohydrates" value={n.carbohydrates} unit="g" maxValue={80} icon={NUTRITION_ICONS.carbohydrates} />
+                            <NutritionRow label="Sugar" value={n.sugar} unit="g" maxValue={40} icon={NUTRITION_ICONS.sugar} />
+                            <NutritionRow label="Dietary Fiber" value={n.fiber} unit="g" maxValue={15} icon={NUTRITION_ICONS.fiber} />
                         </div>
 
                         {/* ── Right column: Fats & Other ── */}
                         <div>
                             <NutritionDivider label="Fats" />
-                            <NutritionRow label="Total Fat" value={n.fat} unit="g" maxValue={30} icon="🧈" highlight />
-                            <NutritionRow label="Saturated Fat" value={n.saturated_fat} unit="g" maxValue={15} icon="🫧" />
-                            <NutritionRow label="Trans Fat" value={n.trans_fat} unit="g" maxValue={2} icon="⚠️" />
+                            <NutritionRow label="Total Fat" value={n.fat} unit="g" maxValue={30} icon={NUTRITION_ICONS.fat} highlight />
+                            <NutritionRow label="Saturated Fat" value={n.saturated_fat} unit="g" maxValue={15} icon={NUTRITION_ICONS.saturated_fat} />
+                            <NutritionRow label="Trans Fat" value={n.trans_fat} unit="g" maxValue={2} icon={NUTRITION_ICONS.trans_fat} />
 
                             <NutritionDivider label="Other" />
-                            <NutritionRow label="Cholesterol" value={n.cholesterol} unit="mg" maxValue={300} icon="🫀" />
-                            <NutritionRow label="Sodium" value={n.sodium} unit="mg" maxValue={800} icon="🧂" />
+                            <NutritionRow label="Cholesterol" value={n.cholesterol} unit="mg" maxValue={300} icon={NUTRITION_ICONS.cholesterol} />
+                            <NutritionRow label="Sodium" value={n.sodium} unit="mg" maxValue={800} icon={NUTRITION_ICONS.sodium} />
                         </div>
                     </div>
 
                     {/* FSSAI Reference Badges */}
                     <div style={{ marginTop: 22, padding: '14px 18px', background: 'rgba(59,130,246,.05)', border: '1px solid rgba(59,130,246,.12)', borderRadius: 12 }}>
                         <div style={{ fontSize: 11, fontWeight: 600, color: '#60a5fa', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            📋 FSSAI Claim Thresholds
+                            <ClipboardList size={14} /> FSSAI Claim Thresholds
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                             {[
@@ -542,8 +522,34 @@ function Results() {
                                 fontSize: 13, color: 'var(--color-neutral-300)', lineHeight: 1.5,
                                 display: 'flex', alignItems: 'flex-start', gap: 10,
                             }}>
-                                <span style={{ color: '#f97316', fontSize: 14, marginTop: 1, flexShrink: 0 }}>⚠</span>
+                                <AlertTriangle size={14} color="#f97316" style={{ marginTop: 1, flexShrink: 0 }} />
                                 <span>{w}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ ALLERGEN WARNINGS ═══ */}
+            {scan.allergens_detected && scan.allergens_detected.length > 0 && (
+                <div className="results-section" style={{ marginBottom: 24, padding: '28px 32px' }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: '#ef4444', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <AlertCircle size={20} />
+                        Allergens Detected
+                        <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-neutral-400)', background: 'rgba(239,68,68,.12)', padding: '2px 10px', borderRadius: 10 }}>
+                            {scan.allergens_detected.length}
+                        </span>
+                    </h3>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                        {scan.allergens_detected.map((allergen, idx) => (
+                            <div key={idx} style={{
+                                padding: '8px 16px', background: 'rgba(239,68,68,.08)',
+                                border: '1px solid rgba(239,68,68,.2)', borderRadius: 20,
+                                fontSize: 14, fontWeight: 600, color: '#ef4444',
+                                display: 'flex', alignItems: 'center', gap: 8, textTransform: 'capitalize'
+                            }}>
+                                <AlertCircle size={14} />
+                                {allergen}
                             </div>
                         ))}
                     </div>
@@ -576,11 +582,20 @@ function Results() {
                     <div style={{ color: 'var(--color-neutral-300)', fontSize: 13, lineHeight: 1.8 }}>
                         {scan.explanation.split('\n').map((line, idx) => {
                             const parsedLine = line.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:var(--color-neutral-100);font-weight:600">$1</strong>');
-                            if (line.trim().startsWith('•') || line.trim().startsWith('-'))
-                                return <div key={idx} style={{ paddingLeft: 16, marginBottom: 4 }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
-                            if (line.match(/^[✅❌⚠️❓🟡]/))
-                                return <div key={idx} style={{ padding: '10px 14px', marginBottom: 8, background: 'rgba(255,255,255,.03)', borderRadius: 8, borderLeft: '3px solid var(--color-primary-500)' }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
-                            if (line.trim() === '') return <div key={idx} style={{ height: 12 }} />;
+
+                            // Handle empty lines
+                            if (line.trim() === '') return <div key={idx} style={{ height: 8 }} />;
+
+                            // Format lines starting with emojis (sub-claims or breakdown items) as list items
+                            if (line.match(/^[✅❌⚠️❓🟡]/) || line.trim().startsWith('•') || line.trim().startsWith('-')) {
+                                return (
+                                    <div key={idx} style={{ paddingLeft: 16, marginBottom: 4, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                                        <div dangerouslySetInnerHTML={{ __html: parsedLine }} />
+                                    </div>
+                                );
+                            }
+
+                            // Format standard text lines
                             return <div key={idx} style={{ marginBottom: 6 }} dangerouslySetInnerHTML={{ __html: parsedLine }} />;
                         })}
                     </div>
@@ -595,20 +610,20 @@ function Results() {
                         padding: '18px 28px', background: 'transparent', border: 'none',
                         cursor: 'pointer', color: 'var(--color-neutral-500)', fontSize: 13, fontWeight: 500
                     }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>🔍 Raw OCR Text (for debugging)</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Search size={14} /> Raw OCR Text (for debugging)</span>
                         {showOcr ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </button>
                     {showOcr && (
                         <div style={{ padding: '0 28px 24px' }}>
                             {scan.ocr_nutrition_text && (
                                 <div style={{ marginBottom: 16 }}>
-                                    <h4 style={{ color: 'var(--color-primary-400)', marginBottom: 8, fontSize: 13 }}>📊 Nutrition Label Text:</h4>
+                                    <h4 style={{ color: 'var(--color-primary-400)', marginBottom: 8, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><BarChart3 size={14} /> Nutrition Label Text:</h4>
                                     <textarea readOnly value={scan.ocr_nutrition_text} style={{ width: '100%', minHeight: 120, padding: 12, background: 'var(--color-neutral-900)', border: '1px solid var(--color-neutral-700)', borderRadius: 8, color: 'var(--color-neutral-200)', fontSize: 12, fontFamily: 'monospace', resize: 'vertical' }} />
                                 </div>
                             )}
                             {scan.ocr_ingredients_text && (
                                 <div>
-                                    <h4 style={{ color: 'var(--color-secondary-400)', marginBottom: 8, fontSize: 13 }}>🧪 Ingredients Text:</h4>
+                                    <h4 style={{ color: 'var(--color-secondary-400)', marginBottom: 8, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><FlaskConical size={14} /> Ingredients Text:</h4>
                                     <textarea readOnly value={scan.ocr_ingredients_text} style={{ width: '100%', minHeight: 120, padding: 12, background: 'var(--color-neutral-900)', border: '1px solid var(--color-neutral-700)', borderRadius: 8, color: 'var(--color-neutral-200)', fontSize: 12, fontFamily: 'monospace', resize: 'vertical' }} />
                                 </div>
                             )}

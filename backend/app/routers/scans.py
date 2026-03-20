@@ -524,18 +524,13 @@ async def get_scan_details(
     ocr_ingredients_text = ingredients.raw_text if ingredients else None
     
     # Calculate health score if nutrition data is available
+    # BUT force 0 if the verdict is UNVERIFIABLE (unreliable data)
     health_score = 0
-    if nutrition_data:
+    is_unverifiable = scan.final_verdict and scan.final_verdict.value == 'UNVERIFIABLE'
+    if nutrition_data and not is_unverifiable:
         try:
             from app.services.ml.model import get_health_model
             health_model = get_health_model()
-            
-            # Prepare nutrition dict
-            nut_dict = nutrition.to_dict()
-            # Rename keys to match model expectation if needed (model expects _per_100g keys which to_dict provides mapped to simple names? let's check model.py)
-            # model.py uses: protein_per_100g, etc.
-            # to_dict returns: protein, sugar, etc.
-            # let's map them back
             
             model_input = {
                 'protein_per_100g': nutrition.protein_per_100g,
@@ -546,19 +541,10 @@ async def get_scan_details(
                 'sodium_per_100g': nutrition.sodium_per_100g
             }
             
-            # Prepare ingredient flags
             flags = {}
             if ingredients and ingredients.flagged_ingredients:
-                flagged = ingredients.flagged_ingredients
-                # Convert list of dicts to flat flags if needed, or parser helper
-                # simpler: check raw flags if stored as JSON
-                # Actually, model.py expects basic flags. Let's infer minimal flags.
-                # Use IngredientsParser logic if possible, or just defaults.
                 pass
             
-            # Since we don't have full ingredient flags easily from DB without parser, 
-            # we'll do a simpler prediction or skip flags.
-            # actually, let's just stick to nutrition-based score for history view
             result = health_model.predict(model_input, flags)
             health_score = result.score
         except Exception as e:

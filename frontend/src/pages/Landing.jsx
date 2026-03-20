@@ -5,6 +5,7 @@ import { Target, CheckCircle, ArrowRight, Zap, Shield, Sparkles } from 'lucide-r
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Hero from '../components/Hero';
+import { CATEGORIES, CLAIM_ICONS, getClaimIcon } from '../utils/icons';
 
 function Landing() {
     const navigate = useNavigate();
@@ -122,7 +123,7 @@ function Landing() {
                         color: 'var(--color-neutral-400)',
                         marginBottom: 'var(--spacing-8)'
                     }}>
-                        25+ claim types verified against strict FSSAI guidelines
+                        20+ claim types verified against strict FSSAI guidelines
                     </p>
 
                     <div style={{
@@ -133,63 +134,31 @@ function Landing() {
                         maxWidth: '900px',
                         margin: '0 auto'
                     }}>
-                        {[
-                            { label: 'High Protein', icon: '💪' },
-                            { label: 'Source of Protein', icon: '🥩' },
-                            { label: 'Low Sugar', icon: '🍬' },
-                            { label: 'Sugar Free', icon: '🚫' },
-                            { label: 'No Added Sugar', icon: '⛔' },
-                            { label: 'High Fiber', icon: '🌾' },
-                            { label: 'Source of Fiber', icon: '🥦' },
-                            { label: 'Low Fat', icon: '🥑' },
-                            { label: 'Fat Free', icon: '🫙' },
-                            { label: 'Low Saturated Fat', icon: '🧈' },
-                            { label: 'Trans Fat Free', icon: '❌' },
-                            { label: 'Low Energy', icon: '🔋' },
-                            { label: 'Cholesterol Free', icon: '🫀' },
-                            { label: 'Low Cholesterol', icon: '💊' },
-                            { label: 'Gluten Free', icon: '🌾' },
-                            { label: 'Vegan', icon: '🌱' },
-                            { label: 'No Preservatives', icon: '🧪' },
-                            { label: 'No Artificial Colors', icon: '🎨' },
-                            { label: 'No Artificial Flavors', icon: '👅' },
-                            { label: 'No Palm Oil', icon: '🌴' },
-                            { label: 'Lactose Free', icon: '🥛' },
-                            { label: 'Eggless', icon: '🥚' },
-                            { label: 'Whole Grain', icon: '🌾' },
-                            { label: 'No Added MSG', icon: '🫗' },
-                            { label: 'Clean Ingredients', icon: '✨' },
-                        ].map((claim) => (
-                            <span
-                                key={claim.label}
-                                style={{
-                                    padding: 'var(--spacing-2) var(--spacing-4)',
-                                    background: 'rgba(34, 197, 94, 0.06)',
-                                    border: '1px solid rgba(34, 197, 94, 0.2)',
-                                    borderRadius: 'var(--radius-full)',
-                                    fontSize: 'var(--font-size-sm)',
-                                    color: 'var(--color-neutral-200)',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 'var(--spacing-2)',
-                                    transition: 'all var(--transition-fast)',
-                                    cursor: 'default'
-                                }}
-                            >
-                                <span>{claim.icon}</span>
-                                {claim.label}
-                            </span>
-                        ))}
+                        {Object.keys(CLAIM_ICONS).map((label) => {
+                            const CIcon = getClaimIcon(label);
+                            return (
+                                <span
+                                    key={label}
+                                    style={{
+                                        padding: 'var(--spacing-2) var(--spacing-4)',
+                                        background: 'rgba(34, 197, 94, 0.06)',
+                                        border: '1px solid rgba(34, 197, 94, 0.2)',
+                                        borderRadius: 'var(--radius-full)',
+                                        fontSize: 'var(--font-size-sm)',
+                                        color: 'var(--color-neutral-200)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 'var(--spacing-2)',
+                                        transition: 'all var(--transition-fast)',
+                                        cursor: 'default'
+                                    }}
+                                >
+                                    <CIcon size={16} />
+                                    {label}
+                                </span>
+                            );
+                        })}
                     </div>
-
-                    <p style={{
-                        textAlign: 'center',
-                        color: 'var(--color-neutral-500)',
-                        fontSize: 'var(--font-size-xs)',
-                        marginTop: 'var(--spacing-6)'
-                    }}>
-                        Compound claims like "High Protein and No Added Sugar" are also supported
-                    </p>
                 </div>
             </section>
 
@@ -214,43 +183,30 @@ function Landing() {
                     maxWidth: '900px',
                     margin: '0 auto'
                 }}>
-                    {[
-                        { label: 'Protein Bars', icon: '🥜', color: 'rgba(234, 179, 8, 0.1)', border: 'rgba(234, 179, 8, 0.25)' },
-                        { label: 'Breakfast Cereals', icon: '🥣', color: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.25)' },
-                        { label: 'Biscuits & Cookies', icon: '🍪', color: 'rgba(249, 115, 22, 0.1)', border: 'rgba(249, 115, 22, 0.25)' },
-                        { label: 'Snacks', icon: '🍿', color: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.25)' },
-                        { label: 'Chocolates', icon: '🍫', color: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.25)' },
-                        { label: 'Beverages', icon: '🥤', color: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.25)' },
-                        { label: 'Energy Drinks', icon: '⚡', color: 'rgba(234, 179, 8, 0.1)', border: 'rgba(234, 179, 8, 0.25)' },
-                        { label: 'Dairy Products', icon: '🥛', color: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.25)' },
-                        { label: 'Noodles & RTE', icon: '🍜', color: 'rgba(249, 115, 22, 0.1)', border: 'rgba(249, 115, 22, 0.25)' },
-                        { label: 'Sauces & Spreads', icon: '🫙', color: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.25)' },
-                        { label: 'Health Supplements', icon: '💊', color: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.25)' },
-                        { label: 'Frozen Foods', icon: '🧊', color: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.25)' },
-                    ].map((cat) => (
+                    {CATEGORIES.map(({ key, Icon, labelFull }) => (
                         <div
-                            key={cat.label}
+                            key={labelFull}
                             style={{
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
                                 gap: 'var(--spacing-2)',
                                 padding: 'var(--spacing-5) var(--spacing-3)',
-                                background: cat.color,
-                                border: `1px solid ${cat.border}`,
+                                background: 'rgba(34, 197, 94, 0.06)',
+                                border: '1px solid rgba(34, 197, 94, 0.2)',
                                 borderRadius: 'var(--radius-xl)',
                                 transition: 'all var(--transition-base)',
                                 cursor: 'default'
                             }}
                         >
-                            <span style={{ fontSize: '2rem' }}>{cat.icon}</span>
+                            <Icon size={32} />
                             <span style={{
                                 fontSize: 'var(--font-size-sm)',
                                 fontWeight: '600',
                                 color: 'var(--color-neutral-200)',
                                 textAlign: 'center'
                             }}>
-                                {cat.label}
+                                {labelFull}
                             </span>
                         </div>
                     ))}

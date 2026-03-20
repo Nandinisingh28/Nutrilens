@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { History as HistoryIcon, ChevronRight, Search } from 'lucide-react';
 import VerdictBadge from '../components/VerdictBadge';
 import { scansAPI } from '../api/client';
+import { getCategoryLabel } from '../utils/icons';
 
 function History() {
     const navigate = useNavigate();
@@ -35,23 +36,7 @@ function History() {
         });
     };
 
-    const getCategoryLabel = (category) => {
-        const labels = {
-            PROTEIN_BAR: '🥜 Protein Bar',
-            BREAKFAST_CEREAL: '🥣 Cereal',
-            BISCUITS_COOKIES: '🍪 Biscuits',
-            SNACKS: '🍿 Snacks',
-            CHOCOLATES_CONFECTIONERY: '🍫 Chocolate',
-            BEVERAGES: '🥤 Beverages',
-            ENERGY_DRINKS: '⚡ Energy Drinks',
-            DAIRY_PRODUCTS: '🥛 Dairy',
-            INSTANT_NOODLES_RTE: '🍜 Noodles/RTE',
-            SAUCES_SPREADS: '🫙 Sauces',
-            HEALTH_SUPPLEMENTS: '💊 Supplements',
-            FROZEN_FOODS: '🧊 Frozen',
-        };
-        return labels[category] || category;
-    };
+
 
     if (loading) {
         return (

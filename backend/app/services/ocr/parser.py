@@ -63,27 +63,30 @@ class NutritionParser:
         'protein': [
             r'protein[:\s]*(\d+\.?\d*)\s*g',
             r'protein[:\s]*(\d+\.?\d*)',
+            r'protein\s*(?:\(g\))?[:\s]*(\d+\.?\d*)',
             r'prot[e3]in[:\s]*(\d+\.?\d*)',
             r'(\d+\.?\d*)\s*g?\s*protein',
             r'प्रोटीन[:\s]*(\d+\.?\d*)',
         ],
         'sugar': [
-            r'(?:total\s+)?sugar[s]?[:\s]*(\d+\.?\d*)\s*g',
+            r'(?:total|added\s+)?sugar[s]?[:\s]*(\d+\.?\d*)\s*g',
+            r'(?:total|added\s+)?sugar[s]?\s*(?:\(g\))?[:\s]*(\d+\.?\d*)',
             r'sugar[s]?[:\s]*(\d+\.?\d*)',
-            r'added\s+sugar[s]?[:\s]*(\d+\.?\d*)',
             r'(\d+\.?\d*)\s*g?\s*sugar',
             r'sug[a4]r[:\s]*(\d+\.?\d*)',
             r'शक्कर[:\s]*(\d+\.?\d*)',
         ],
         'fat': [
             r'(?:total\s+)?fat[:\s]*(\d+\.?\d*)\s*g',
-            r'fat[:\s]*(\d+\.?\d*)',
-            r'(\d+\.?\d*)\s*g?\s*fat',
+            r'(?:total\s+)?fat\s*(?:\(g\))?[:\s]*(\d+\.?\d*)',
+            r'(?<!saturated\s)(?<!unsaturated\s)(?<!trans\s)fat[:\s]*(\d+\.?\d*)',
+            r'(\d+\.?\d*)\s*g?\s*(?:total\s+)?fat(?!ty)',
             r'f[a4]t[:\s]*(\d+\.?\d*)',
             r'वसा[:\s]*(\d+\.?\d*)',
         ],
         'fiber': [
             r'(?:dietary\s+)?fib(?:re|er)[:\s]*(\d+\.?\d*)\s*g',
+            r'(?:dietary\s+)?fib(?:re|er)\s*(?:\(g\))?[:\s]*(\d+\.?\d*)',
             r'fib(?:re|er)[:\s]*(\d+\.?\d*)',
             r'(\d+\.?\d*)\s*g?\s*fib(?:re|er)',
             r'fibre?[:\s]*(\d+\.?\d*)',
@@ -91,6 +94,7 @@ class NutritionParser:
         ],
         'calories': [
             r'(?:energy|calories?)[:\s]*(\d+\.?\d*)\s*(?:kcal|cal)',
+            r'(?:energy|calories?)\s*(?:\(kcal\)|\(cal\))?[:\s]*(\d+\.?\d*)',
             r'(?:energy|calories?)[:\s]*(\d+\.?\d*)',
             r'(\d+\.?\d*)\s*(?:kcal|cal)',
             r'(\d+\.?\d*)\s*calories?',
@@ -100,25 +104,29 @@ class NutritionParser:
         ],
         'sodium': [
             r'sodium[:\s]*(\d+\.?\d*)\s*mg',
+            r'sodium\s*(?:\(mg\))?[:\s]*(\d+\.?\d*)',
             r'sodium[:\s]*(\d+\.?\d*)',
             r'(\d+\.?\d*)\s*mg?\s*sodium',
-            r'salt[:\s]*(\d+\.?\d*)',
+            r'salt\s*(?:\(g\)|\(mg\))?[:\s]*(\d+\.?\d*)',
             r'सोडियम[:\s]*(\d+\.?\d*)',
         ],
         'carbohydrates': [
             r'(?:total\s+)?carbohydrate[s]?[:\s]*(\d+\.?\d*)\s*g',
+            r'(?:total\s+)?carbohydrate[s]?\s*(?:\(g\))?[:\s]*(\d+\.?\d*)',
             r'carbohydrate[s]?[:\s]*(\d+\.?\d*)',
-            r'carbs?[:\s]*(\d+\.?\d*)',
+            r'carbs?\s*(?:\(g\))?[:\s]*(\d+\.?\d*)',
             r'(\d+\.?\d*)\s*g?\s*carb',
             r'कार्बोहाइड्रेट[:\s]*(\d+\.?\d*)',
         ],
         'saturated_fat': [
-            r'saturated\s*fat[:\s]*(\d+\.?\d*)\s*g',
+            r'saturated\s+fat(?:ty)?\s*(?:acids?)?[:\s]*(\d+\.?\d*)\s*g',
+            r'saturated\s+fat(?:ty)?\s*(?:acids?)?[:\s]*(\d+\.?\d*)',
             r'sat(?:urated)?\s*fat[:\s]*(\d+\.?\d*)',
             r'(\d+\.?\d*)\s*g?\s*sat\s*fat',
         ],
         'trans_fat': [
-            r'trans\s*fat[:\s]*(\d+\.?\d*)\s*g',
+            r'trans\s+fat(?:ty)?\s*(?:acids?)?[:\s]*(\d+\.?\d*)\s*g',
+            r'trans\s+fat(?:ty)?\s*(?:acids?)?[:\s]*(\d+\.?\d*)',
             r'trans\s*fat[:\s]*(\d+\.?\d*)',
             r'(\d+\.?\d*)\s*g?\s*trans\s*fat',
         ],
@@ -144,9 +152,16 @@ class NutritionParser:
     def parse(self, text: str, category: str = None) -> NutritionInfo:
         """Parse nutrition text into structured data with debug info"""
         text_lower = text.lower()
+        
+        # --- OCR Error Tolerance (Sanitization) ---
+        # Common issue: OCR reads "0g" as "og" and "0mg" as "omg"
+        # We selectively replace isolated "omg" and "og" when they appear next to numbers or as values
+        text_lower = re.sub(r'\b[oO]\s*mg\b', '0mg', text_lower)
+        text_lower = re.sub(r'\b[oO]\s*g\b', '0g', text_lower)
+        
         debug_matches = {}
         
-        logger.debug(f"Parsing nutrition from text ({len(text)} chars): {text[:500]}...")
+        logger.debug(f"Parsing nutrition from text ({len(text_lower)} chars): {text_lower[:500]}...")
         
         # Extract serving size
         serving_size = self._extract_value('serving_size', text_lower)
@@ -179,30 +194,30 @@ class NutritionParser:
         # Convert to per 100g if needed
         if not is_per_100g and serving_g != 100:
             factor = 100 / serving_g
-            protein = protein * factor if protein else None
-            sugar = sugar * factor if sugar else None
-            fat = fat * factor if fat else None
-            fiber = fiber * factor if fiber else None
-            calories = calories * factor if calories else None
-            carbs = carbs * factor if carbs else None
-            sodium = sodium * factor if sodium else None
-            sat_fat = sat_fat * factor if sat_fat else None
-            trans_fat = trans_fat * factor if trans_fat else None
-            cholesterol = cholesterol * factor if cholesterol else None
+            protein = protein * factor if protein is not None else None
+            sugar = sugar * factor if sugar is not None else None
+            fat = fat * factor if fat is not None else None
+            fiber = fiber * factor if fiber is not None else None
+            calories = calories * factor if calories is not None else None
+            carbs = carbs * factor if carbs is not None else None
+            sodium = sodium * factor if sodium is not None else None
+            sat_fat = sat_fat * factor if sat_fat is not None else None
+            trans_fat = trans_fat * factor if trans_fat is not None else None
+            cholesterol = cholesterol * factor if cholesterol is not None else None
             debug_matches['conversion_factor'] = factor
         
         result = NutritionInfo(
             serving_size=serving_size,
-            protein_per_100g=round(protein, 1) if protein else None,
-            sugar_per_100g=round(sugar, 1) if sugar else None,
-            fat_per_100g=round(fat, 1) if fat else None,
-            fiber_per_100g=round(fiber, 1) if fiber else None,
-            calories_per_100g=round(calories, 1) if calories else None,
-            sodium_per_100g=round(sodium, 1) if sodium else None,
-            carbohydrates_per_100g=round(carbs, 1) if carbs else None,
-            saturated_fat_per_100g=round(sat_fat, 1) if sat_fat else None,
-            trans_fat_per_100g=round(trans_fat, 1) if trans_fat else None,
-            cholesterol_per_100g=round(cholesterol, 1) if cholesterol else None,
+            protein_per_100g=round(protein, 1) if protein is not None else None,
+            sugar_per_100g=round(sugar, 1) if sugar is not None else None,
+            fat_per_100g=round(fat, 1) if fat is not None else None,
+            fiber_per_100g=round(fiber, 1) if fiber is not None else None,
+            calories_per_100g=round(calories, 1) if calories is not None else None,
+            sodium_per_100g=round(sodium, 1) if sodium is not None else None,
+            carbohydrates_per_100g=round(carbs, 1) if carbs is not None else None,
+            saturated_fat_per_100g=round(sat_fat, 1) if sat_fat is not None else None,
+            trans_fat_per_100g=round(trans_fat, 1) if trans_fat is not None else None,
+            cholesterol_per_100g=round(cholesterol, 1) if cholesterol is not None else None,
             raw_text=text,
             debug_matches=debug_matches
         )

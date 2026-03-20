@@ -40,6 +40,7 @@ class SubClaimResult:
     reason: str
     actual_value: Optional[str] = None
     threshold_value: Optional[str] = None
+    detailed_reason: Optional[str] = None
 
 
 @dataclass
@@ -121,7 +122,8 @@ class ClaimVerificationEngine:
                 ingredients,
                 ingredient_flags,
                 has_nutrition,
-                has_ingredients
+                has_ingredients,
+                category
             )
             sub_results.append(result)
         
@@ -139,14 +141,22 @@ class ClaimVerificationEngine:
         # Get ingredient warnings
         warnings = self._get_ingredient_warnings(ingredients) if ingredients else []
         
+        # Force health score to 0 if verdict is unverifiable
+        if final_verdict == Verdict.UNVERIFIABLE:
+            health_score = 0
+            risk_labels = []
+        else:
+            health_score = ml_result.score if ml_result else 0
+            risk_labels = ml_result.risk_labels if ml_result else []
+        
         return VerificationResult(
             final_verdict=final_verdict,
             score=score,
             explanation=explanation,
             sub_claims=sub_results,
             ingredient_warnings=warnings,
-            health_score=ml_result.score if ml_result else 0,
-            risk_labels=ml_result.risk_labels if ml_result else []
+            health_score=health_score,
+            risk_labels=risk_labels
         )
     
     def _verify_single_claim(
@@ -157,7 +167,8 @@ class ClaimVerificationEngine:
         ingredients: Optional[IngredientsInfo],
         ingredient_flags: Dict,
         has_nutrition: bool,
-        has_ingredients: bool
+        has_ingredients: bool,
+        category: str = ''
     ) -> SubClaimResult:
         """Verify a single claim type"""
         
@@ -271,6 +282,7 @@ class ClaimVerificationEngine:
         # Evaluate nutritional conditions
         conditions = threshold_def.get('conditions', [])
         conditions_met = 0
+        conditions_passed_list = []
         conditions_failed = []
         conditions_unverifiable = []
         
@@ -287,6 +299,12 @@ class ClaimVerificationEngine:
             
             if evaluate_condition(nutrition, nutrient, comparison, threshold_value):
                 conditions_met += 1
+                conditions_passed_list.append({
+                    'nutrient': nutrient,
+                    'actual': actual,
+                    'threshold': threshold_value,
+                    'comparison': comparison
+                })
             else:
                 conditions_failed.append({
                     'nutrient': nutrient,
@@ -309,6 +327,7 @@ class ClaimVerificationEngine:
         
         # Determine verdict
         total_conditions = len(conditions)
+        detailed_reason = None
         
         if total_conditions == 0:
             # Pure ingredient-based claim
@@ -332,12 +351,12 @@ class ClaimVerificationEngine:
         elif conditions_met == total_conditions and (ingredient_passed or not ingredient_check):
             # All conditions met
             verdict = Verdict.TRUE
-            reason = self._format_success_reason(claim_type, nutrition, threshold_def)
+            reason = self._format_success_reason(claim_type, nutrition, threshold_def, category)
         
         elif conditions_met == 0 and len(conditions_failed) == total_conditions:
             # All conditions failed
             verdict = Verdict.FALSE
-            reason = self._format_failure_reason(claim_type, conditions_failed, threshold_def)
+            reason = self._format_failure_reason(claim_type, conditions_failed, threshold_def, category)
         
         elif conditions_met > 0:
             # Some conditions met
@@ -345,7 +364,8 @@ class ClaimVerificationEngine:
                 verdict = Verdict.PARTIALLY_TRUE
             else:
                 verdict = Verdict.MISLEADING
-            reason = self._format_partial_reason(claim_type, conditions_met, total_conditions, conditions_failed)
+            reason = f"Meets {conditions_met} of {total_conditions} conditions for {get_claim_description(claim_type)}"
+            detailed_reason = self._format_partial_reason(claim_type, conditions_passed_list, conditions_failed)
         
         else:
             verdict = Verdict.UNVERIFIABLE
@@ -356,15 +376,20 @@ class ClaimVerificationEngine:
             if verdict == Verdict.TRUE:
                 verdict = Verdict.MISLEADING
             reason += f" However, {ingredient_reason}"
+            if detailed_reason:
+                detailed_reason += f"\n❌ Ingredient requirement failed: {ingredient_reason}"
         
         # Format actual and threshold values
         actual_str = None
         threshold_str = None
         if conditions and nutrition.get(conditions[0]['nutrient']) is not None:
             nutrient_name = conditions[0]['nutrient']
-            unit = '%' if 'percent' in nutrient_name else 'g'
+            unit = self._get_unit(nutrient_name)
             actual_val = nutrition.get(nutrient_name)
-            actual_str = f"{actual_val}{unit} per 100g" if unit == 'g' else f"{actual_val}{unit} of energy"
+            if 'percent' in nutrient_name:
+                actual_str = f"{actual_val}{unit} of energy"
+            else:
+                actual_str = f"{actual_val}{unit} per 100g"
             threshold_str = threshold_def.get('description', '')
         
         return SubClaimResult(
@@ -373,7 +398,8 @@ class ClaimVerificationEngine:
             verdict=verdict,
             reason=reason,
             actual_value=actual_str,
-            threshold_value=threshold_str
+            threshold_value=threshold_str,
+            detailed_reason=detailed_reason
         )
     
     def _check_ingredient_requirement(
@@ -526,7 +552,7 @@ class ClaimVerificationEngine:
             ]
             found = [kw for kw in palm_keywords if kw in raw]
             if found:
-                return False, f"Palm oil ingredients found: {', '.join(found)}"
+                return False, f"Palm oil ingredients found: {', '.join(found)}. Suggestion: Look for products with Sunflower, Olive, or Mustard oil instead."
             return True, "No palm oil detected in ingredients"
         
         elif check_type == 'no_added_msg':
@@ -692,80 +718,95 @@ class ClaimVerificationEngine:
         
         # Summary
         if final_verdict == Verdict.TRUE:
-            parts.append("✅ All claims verified successfully!")
+            parts.append("All claims verified successfully.")
         elif final_verdict == Verdict.PARTIALLY_TRUE:
-            parts.append("⚠️ Some claims verified, but not all conditions are met.")
+            parts.append("Some claims verified, but not all conditions are met.")
         elif final_verdict == Verdict.MISLEADING:
-            parts.append("⚠️ The claims are technically misleading based on the product's nutritional profile.")
+            parts.append("The claims are technically misleading based on the product's nutritional profile.")
         elif final_verdict == Verdict.FALSE:
-            parts.append("❌ The claims could not be verified and appear to be inaccurate.")
+            parts.append("The claims could not be verified and appear to be inaccurate.")
         else:
-            parts.append("❓ Could not fully verify the claims due to missing information.")
+            parts.append("Could not fully verify the claims due to missing information.")
         
         parts.append("")
         
         # Sub-claim details
         for result in sub_results:
-            emoji = self._verdict_emoji(result.verdict)
-            parts.append(f"{emoji} **{result.display_name}**: {result.verdict.value}")
-            parts.append(f"   {result.reason}")
+            parts.append(f"• **{result.display_name}**: {result.verdict.value}")
+            details = result.detailed_reason if result.detailed_reason else result.reason
+            parts.append(f"  {details}")
             parts.append("")
-        
-        # Nutrition summary if available
-        if nutrition.get('protein_per_100g') or nutrition.get('sugar_per_100g'):
-            parts.append("**Nutrition Summary (per 100g):**")
-            if nutrition.get('protein_per_100g'):
-                parts.append(f"• Protein: {nutrition['protein_per_100g']}g")
-            if nutrition.get('sugar_per_100g'):
-                parts.append(f"• Sugar: {nutrition['sugar_per_100g']}g")
-            if nutrition.get('fat_per_100g'):
-                parts.append(f"• Fat: {nutrition['fat_per_100g']}g")
-            if nutrition.get('fiber_per_100g'):
-                parts.append(f"• Fiber: {nutrition['fiber_per_100g']}g")
-            if nutrition.get('calories_per_100g'):
-                parts.append(f"• Calories: {nutrition['calories_per_100g']} kcal")
         
         return "\n".join(parts)
     
-    def _verdict_emoji(self, verdict: Verdict) -> str:
-        """Get emoji for verdict"""
-        mapping = {
-            Verdict.TRUE: "✅",
-            Verdict.PARTIALLY_TRUE: "🟡",
-            Verdict.MISLEADING: "⚠️",
-            Verdict.FALSE: "❌",
-            Verdict.UNVERIFIABLE: "❓"
-        }
-        return mapping.get(verdict, "•")
-    
-    def _format_success_reason(self, claim_type: str, nutrition: Dict, threshold_def: Dict) -> str:
-        """Format success reason with actual values"""
+    @staticmethod
+    def _get_unit(nutrient: str) -> str:
+        """Return the correct display unit for a nutrient field."""
+        if 'percent' in nutrient:
+            return '%'
+        if nutrient in ('sodium_per_100g', 'cholesterol_per_100g'):
+            return 'mg'
+        return 'g'
+
+    def _format_threshold_detail(self, conditions: List[Dict], category: str) -> str:
+        """Build a human-readable threshold string like '≥20g for Protein Bar'."""
+        parts = []
+        cat_display = category.replace('_', ' ').title() if category else ''
+        for cond in conditions:
+            nutrient_name = cond['nutrient'].replace('_per_100g', '').replace('_energy_percent', ' energy %').replace('_', ' ').title()
+            unit = self._get_unit(cond['nutrient'])
+            comp_sym = '≤' if cond['comparison'] in ('lte', 'lt') else '≥'
+            parts.append(f"{nutrient_name} {comp_sym} {cond['value']}{unit}")
+        detail = ', '.join(parts)
+        if cat_display:
+            detail += f" for {cat_display}"
+        return detail
+
+    def _format_success_reason(self, claim_type: str, nutrition: Dict, threshold_def: Dict, category: str = '') -> str:
+        """Format success reason with actual values and specific thresholds"""
         conditions = threshold_def.get('conditions', [])
         if conditions:
             cond = conditions[0]
             actual = nutrition.get(cond['nutrient'])
-            unit = '%' if 'percent' in cond['nutrient'] else 'g per 100g'
-            return f"Product meets requirement: {actual}{unit} (threshold: {threshold_def.get('description', '')})"
+            unit = self._get_unit(cond['nutrient'])
+            label = f"{actual}{unit} per 100g" if unit != '%' else f"{actual}{unit} of energy"
+            threshold_detail = self._format_threshold_detail(conditions, category)
+            return f"Product meets requirement: {label} (threshold: {threshold_detail})"
         return f"Product meets the {get_claim_description(claim_type)} requirements"
     
-    def _format_failure_reason(self, claim_type: str, failed: List[Dict], threshold_def: Dict) -> str:
-        """Format failure reason with actual values"""
+    def _format_failure_reason(self, claim_type: str, failed: List[Dict], threshold_def: Dict, category: str = '') -> str:
+        """Format failure reason with actual values and specific thresholds"""
+        conditions = threshold_def.get('conditions', [])
         if failed:
             f = failed[0]
             nutrient_name = f['nutrient'].replace('_per_100g', '').replace('_', ' ').title()
-            unit = '%' if 'percent' in f['nutrient'] else 'g per 100g'
-            return f"{nutrient_name} is {f['actual']}{unit}, but requirement is {threshold_def.get('description', '')}"
+            unit = self._get_unit(f['nutrient'])
+            label = f"{f['actual']}{unit} per 100g" if unit != '%' else f"{f['actual']}{unit} of energy"
+            threshold_detail = self._format_threshold_detail(conditions if conditions else [f], category)
+            return f"{nutrient_name} is {label}, but requirement is {threshold_detail}"
         return f"Product does not meet {get_claim_description(claim_type)} requirements"
     
     def _format_partial_reason(
         self, 
         claim_type: str, 
-        met: int, 
-        total: int, 
+        passed: List[Dict],
         failed: List[Dict]
     ) -> str:
-        """Format partial success reason"""
-        return f"Meets {met} of {total} conditions for {get_claim_description(claim_type)}"
+        """Format partial success reason with detailed breakdown"""
+        parts = [f"Breakdown for {get_claim_description(claim_type)}:"]
+        
+        for p in passed:
+            nutrient_name = p['nutrient'].replace('_per_100g', '').replace('_', ' ').title()
+            unit = self._get_unit(p['nutrient'])
+            comp_sym = '<=' if p['comparison'] == 'lte' else '>='
+            parts.append(f"  - {nutrient_name} passed: {p['actual']}{unit} ({comp_sym} {p['threshold']}{unit})")
+            
+        for f in failed:
+            nutrient_name = f['nutrient'].replace('_per_100g', '').replace('_', ' ').title()
+            unit = self._get_unit(f['nutrient'])
+            comp_sym = '<=' if f['comparison'] == 'lte' else '>='
+            parts.append(f"  - {nutrient_name} failed: {f['actual']}{unit} (required {comp_sym} {f['threshold']}{unit})")
+        return "\n".join(parts)
     
     def _has_valid_nutrition(self, nutrition: Optional[NutritionInfo]) -> bool:
         """Check if nutrition data is valid"""
